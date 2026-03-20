@@ -1,0 +1,169 @@
+---
+title: "Docker Deployment"
+description: "Run PAI in Docker on x86, Raspberry Pi, or other ARM platforms"
+---
+
+PAI is published as a multi-architecture Docker image that runs on x86 desktops, servers, and ARM single-board computers including the Raspberry Pi.
+
+<Info>
+  The official image is `paradoxalarminterface/pai`, available on Docker Hub. Supported architectures: `386`, `amd64`, `armv6`, `armv7`, and `arm64`.
+</Info>
+
+## Pull the image
+
+```bash
+docker pull paradoxalarminterface/pai
+```
+
+## Run PAI
+
+<Steps>
+  <Step title="Create your config file">
+    Copy the example config and edit it for your setup.
+
+    ```bash
+    mkdir -p /etc/pai
+    curl -o /etc/pai/pai.conf \
+      https://raw.githubusercontent.com/ParadoxAlarmInterface/pai/master/config/pai.conf.example
+    ```
+
+    Edit `/etc/pai/pai.conf` to set your connection type, serial port or IP module address, and any interfaces you want to enable.
+  </Step>
+
+  <Step title="Run the container">
+    The container reads its configuration from `/etc/pai/pai.conf` by default (set via `PAI_CONFIG_FILE` in the image). Mount your config directory as a volume.
+
+    <Tabs>
+      <Tab title="Serial connection">
+        Pass through your serial device with `--device` and mount the config directory:
+
+        ```bash
+        docker run -d \
+          --name pai \
+          --restart unless-stopped \
+          --device=/dev/ttyUSB0 \
+          -v /etc/pai:/etc/pai \
+          -v /var/log/pai:/var/log/pai \
+          paradoxalarminterface/pai
+        ```
+
+        Adjust `/dev/ttyUSB0` to match your device path. Common paths include `/dev/ttyUSB0` for USB adapters and `/dev/ttyS1` for onboard serial ports.
+      </Tab>
+      <Tab title="IP150 module">
+        No device passthrough needed for IP150 connections:
+
+        ```bash
+        docker run -d \
+          --name pai \
+          --restart unless-stopped \
+          -v /etc/pai:/etc/pai \
+          -v /var/log/pai:/var/log/pai \
+          paradoxalarminterface/pai
+        ```
+
+        Set `CONNECTION_TYPE = 'IP'` and configure `IP_CONNECTION_HOST` in your `pai.conf`.
+      </Tab>
+    </Tabs>
+  </Step>
+</Steps>
+
+## Volume mounts
+
+The image declares two volumes you should always mount:
+
+| Container path | Purpose |
+|---|---|
+| `/etc/pai` | Configuration directory. Contains `pai.conf`. |
+| `/var/log/pai` | Log directory. PAI writes `paradox.log` here when file logging is enabled. |
+
+## Environment variables
+
+Every configuration key can be overridden with an environment variable prefixed by `PAI_`. For example, `MQTT_HOST` becomes `PAI_MQTT_HOST`.
+
+```bash
+docker run -d \
+  --name pai \
+  --restart unless-stopped \
+  --device=/dev/ttyUSB0 \
+  -v /etc/pai:/etc/pai \
+  -v /var/log/pai:/var/log/pai \
+  -e PAI_MQTT_ENABLE=True \
+  -e PAI_MQTT_HOST=192.168.1.10 \
+  -e PAI_SERIAL_PORT=/dev/ttyUSB0 \
+  paradoxalarminterface/pai
+```
+
+<Note>
+  Environment variables are applied on top of the config file. If the same key appears in both, the environment variable wins.
+</Note>
+
+## Docker Compose
+
+### PAI only
+
+```yaml docker-compose.yml
+services:
+  pai:
+    image: paradoxalarminterface/pai
+    container_name: pai
+    restart: unless-stopped
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+    volumes:
+      - /etc/pai:/etc/pai
+      - /var/log/pai:/var/log/pai
+    environment:
+      - PAI_MQTT_HOST=192.168.1.10
+```
+
+### PAI with Mosquitto MQTT broker
+
+If you do not have a separate MQTT broker, you can run Mosquitto alongside PAI in the same Compose project.
+
+```yaml docker-compose.yml
+services:
+  mosquitto:
+    image: eclipse-mosquitto
+    container_name: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+
+  pai:
+    image: paradoxalarminterface/pai
+    container_name: pai
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+    volumes:
+      - /etc/pai:/etc/pai
+      - /var/log/pai:/var/log/pai
+    environment:
+      - PAI_MQTT_ENABLE=True
+      - PAI_MQTT_HOST=mosquitto
+```
+
+When PAI and Mosquitto share a Compose network, use the service name `mosquitto` as the MQTT host. No port mapping is needed for PAI to reach the broker.
+
+<Tip>
+  Create a minimal Mosquitto config at `./mosquitto/config/mosquitto.conf` with at least `listener 1883` and `allow_anonymous true` (or configure authentication) to allow connections.
+</Tip>
+
+## Exposed ports
+
+The image exposes two ports, used only if the corresponding interfaces are enabled in your config:
+
+| Port | Interface |
+|---|---|
+| `18839/tcp` | Internal MQTT broker (bind address `0.0.0.0`) |
+| `10000/tcp` | IP Socket Interface (`IP_INTERFACE_ENABLE = True`) |
+
+## Default entrypoint
+
+The container runs `pai-service` as its default command. This is the PAI service entrypoint installed by `pip install .`. The process will automatically reconnect to the panel if the connection is lost.

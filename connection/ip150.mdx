@@ -1,0 +1,99 @@
+---
+title: 'IP150 module connection'
+description: 'Connect to your Paradox panel over the network using the IP150 module'
+---
+
+The Paradox IP150 is an add-on network module that bridges the panel's serial bus to TCP/IP. With it installed, PAI can connect to the panel over a LAN or WAN without any direct serial wiring.
+
+Set `CONNECTION_TYPE = 'IP'` in `pai.conf` to use any of the IP150 connection modes.
+
+## Connection modes
+
+PAI supports three distinct IP connection modes depending on your IP150 firmware version and network topology.
+
+<Tabs>
+  <Tab title="Direct">
+    PAI connects directly to the IP150 module over TCP. This is the recommended approach when the module is reachable on your local network.
+
+    **Supported firmware versions:** below 4.0, or 4.40.004 and later.
+
+    PAI negotiates an encrypted session with the module using the IP module password, then communicates with the panel directly.
+
+    ```python pai.conf
+    CONNECTION_TYPE = 'IP'
+    IP_CONNECTION_HOST = '192.168.1.100'  # IP address of the IP150 module
+    IP_CONNECTION_PORT = 10000
+    IP_CONNECTION_PASSWORD = 'paradox'
+    PASSWORD = '0000'  # PC password
+    ```
+  </Tab>
+  <Tab title="SWAN cloud">
+    SWAN is the Paradox cloud relay service. PAI connects to Paradox's servers using STUN/TCP, which then tunnels traffic to the IP150 module. This path is used automatically when `IP_CONNECTION_SITEID` is set.
+
+    **Supported firmware versions:** 4.0 and later.
+
+    <Warning>
+      The PAI project does not recommend using SWAN. A security vulnerability has been documented in the Paradox cloud infrastructure at [https://github.com/CriticalSecurity/paradox](https://github.com/CriticalSecurity/paradox). Use direct mode whenever possible.
+    </Warning>
+
+    ```python pai.conf
+    CONNECTION_TYPE = 'IP'
+    IP_CONNECTION_SITEID = 'YOUR-SITE-ID'
+    IP_CONNECTION_EMAIL = 'your@email.com'
+    IP_CONNECTION_PASSWORD = 'paradox'
+    PASSWORD = '0000'  # PC password
+    ```
+  </Tab>
+  <Tab title="Bare / serial-over-TCP">
+    Bare mode is used when the TCP endpoint is **not** an IP150 module, but rather a serial tunnel — for example, an ESP32 or Arduino that bridges the panel's serial port to a TCP socket.
+
+    Setting `IP_CONNECTION_BARE = True` disables IP150 module handshaking. PAI speaks directly to the serial stream over TCP, identical to a local serial connection.
+
+    ```python pai.conf
+    CONNECTION_TYPE = 'IP'
+    IP_CONNECTION_HOST = '192.168.1.50'  # address of the serial-to-TCP bridge
+    IP_CONNECTION_PORT = 10000
+    IP_CONNECTION_BARE = True
+    PASSWORD = '0000'  # PC password
+    ```
+  </Tab>
+</Tabs>
+
+## All IP connection options
+
+| Option | Default | Description |
+|---|---|---|
+| `CONNECTION_TYPE` | `'Serial'` | Must be set to `'IP'` |
+| `IP_CONNECTION_HOST` | `'127.0.0.1'` | IP address or hostname of the IP150 module |
+| `IP_CONNECTION_PORT` | `10000` | TCP port of the IP150 module |
+| `IP_CONNECTION_PASSWORD` | `'paradox'` | IP module password. The factory default is `paradox` |
+| `IP_CONNECTION_SITEID` | `None` | SWAN site ID. When set, PAI connects via the Paradox cloud relay |
+| `IP_CONNECTION_EMAIL` | `None` | Email address registered to the SWAN site |
+| `IP_CONNECTION_PANEL_SERIAL` | `None` | Serial number of the target panel on multi-panel sites. Set to `None` to use the first available panel |
+| `IP_CONNECTION_BARE` | `False` | Disables IP150 handshaking for bare serial-over-TCP tunnels |
+| `PASSWORD` | `None` | 4-digit PC password from Babyware |
+
+## Credentials
+
+Two separate passwords are involved in an IP connection:
+
+- **IP module password** (`IP_CONNECTION_PASSWORD`): authenticates PAI to the IP150 module. The factory default is `paradox`.
+- **PC password** (`PASSWORD`): authenticates PAI to the alarm panel itself. This is a 4-digit hex password (`[0-9a-f]`) configured in Babyware under **Panel Properties → PC Communication (Babyware)**.
+
+## Firmware compatibility
+
+<Info>
+  Direct connections work with IP150 firmware **below 4.0** and **4.40.004 or later**. Firmware versions between 4.0 and 4.40.004 (exclusive) only support SWAN cloud connections.
+
+  If your IP150 is running a firmware version in that range and you want to use direct mode, you must upgrade the module firmware to 4.40.004 or later.
+</Info>
+
+## Multi-panel sites
+
+If your IP150 module is associated with more than one panel (visible when connecting via SWAN), use `IP_CONNECTION_PANEL_SERIAL` to target a specific panel:
+
+```python pai.conf
+IP_CONNECTION_PANEL_SERIAL = '123456789'  # panel serial number
+```
+
+Leave it as `None` and PAI will connect to the first available panel.

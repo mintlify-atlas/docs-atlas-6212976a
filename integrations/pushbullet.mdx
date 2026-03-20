@@ -1,0 +1,171 @@
+---
+title: "Pushbullet Integration"
+description: "Send alarm notifications to Android, iOS, and desktop via Pushbullet"
+---
+
+The Pushbullet integration lets PAI send alarm event notifications to your Android, iOS, and desktop devices. It also listens for incoming Pushbullet messages so you can send control commands back to the panel from any connected device.
+
+## Prerequisites
+
+<CardGroup cols={2}>
+  <Card title="Pushbullet account" icon="user">
+    Create a free account at [pushbullet.com](https://www.pushbullet.com).
+  </Card>
+  <Card title="API key" icon="key">
+    Generate an access token from **Settings → Account** in the Pushbullet web app.
+  </Card>
+</CardGroup>
+
+## Installation
+
+The Pushbullet integration requires two additional packages: `pushbullet.py` and `ws4py`. Install them with the `Pushbullet` extra:
+
+```bash
+pip install "paradox-alarm-interface[Pushbullet]"
+```
+
+This installs `pushbullet.py>=0.11.0` and `ws4py>=0.4.2`.
+
+## Configuration
+
+Add the following to your `pai.conf`:
+
+```python pai.conf
+PUSHBULLET_ENABLE = True
+PUSHBULLET_KEY = '<your-api-key>'         # Authentication key from Pushbullet settings
+PUSHBULLET_DEVICE = 'pai'                 # Device nickname to send notifications from
+PUSHBULLET_CONTACTS = ['you@example.com'] # Pushbullet user emails allowed to send commands
+
+PUSHBULLET_MIN_EVENT_LEVEL = 'INFO'       # Minimum event level: DEBUG, INFO, WARN, ERROR, CRITICAL
+
+# Event filtering by tags (default):
+PUSHBULLET_EVENT_FILTERS = [
+    'live,alarm,-restore',  # Live alarm events, excluding restores
+    'trouble,-clock',       # Trouble events, excluding clock trouble
+    'live,tamper',          # Live tamper events
+]
+```
+
+### Configuration reference
+
+<AccordionGroup>
+  <Accordion title="PUSHBULLET_ENABLE">
+    Enable or disable the Pushbullet interface. Set to `True` to activate.
+
+    **Default:** `False`
+  </Accordion>
+  <Accordion title="PUSHBULLET_KEY">
+    Your Pushbullet API access token. Generate it from **Settings → Account** on the Pushbullet website.
+
+    **Default:** `''`
+  </Accordion>
+  <Accordion title="PUSHBULLET_DEVICE">
+    The nickname of the Pushbullet device that PAI registers and sends notifications from. If a device with this name does not exist, PAI creates one automatically with icon `system`.
+
+    **Default:** `'pai'`
+  </Accordion>
+  <Accordion title="PUSHBULLET_CONTACTS">
+    A list of Pushbullet user email addresses that are allowed to send commands to the panel and receive notifications. Messages from email addresses not in this list are logged as unknown and ignored.
+
+    **Default:** `[]`
+  </Accordion>
+  <Accordion title="PUSHBULLET_MIN_EVENT_LEVEL">
+    The minimum severity level for events to be forwarded. Accepted values: `DEBUG`, `INFO`, `WARN`, `ERROR`, `CRITICAL`.
+
+    **Default:** `'INFO'`
+  </Accordion>
+  <Accordion title="PUSHBULLET_EVENT_FILTERS">
+    A list of tag expressions that control which events are sent. Each entry is a comma-separated list of tags; a `-` prefix excludes a tag. An event matches if all tags in any one expression match. This option cannot be combined with `PUSHBULLET_ALLOW_EVENTS`.
+
+    **Default:**
+    ```python
+    [
+        'live,alarm,-restore',
+        'trouble,-clock',
+        'live,tamper',
+    ]
+    ```
+  </Accordion>
+  <Accordion title="PUSHBULLET_ALLOW_EVENTS and PUSHBULLET_IGNORE_EVENTS">
+    Alternative to `PUSHBULLET_EVENT_FILTERS` using regular expressions.
+
+    - `PUSHBULLET_ALLOW_EVENTS` — list of regex patterns matching `type,label,property=value` for events to forward.
+    - `PUSHBULLET_IGNORE_EVENTS` — list of regex patterns for events to suppress, applied after `ALLOW_EVENTS`.
+
+    **Example:**
+    ```python
+    PUSHBULLET_ALLOW_EVENTS = [r".*"]
+    PUSHBULLET_IGNORE_EVENTS = [
+        r"zone,[\w]+,no_delay=True",
+        r"zone,[\w]+,exit_delay=.*",
+    ]
+    ```
+
+    **Default:** `[]` for both
+  </Accordion>
+</AccordionGroup>
+
+## Example configuration
+
+<CodeGroup>
+
+```python basic
+PUSHBULLET_ENABLE = True
+PUSHBULLET_KEY = 'o.AbCdEfGhIjKlMnOpQrStUvWxYz123456'
+PUSHBULLET_DEVICE = 'pai'
+PUSHBULLET_CONTACTS = ['alice@example.com']
+PUSHBULLET_MIN_EVENT_LEVEL = 'INFO'
+PUSHBULLET_EVENT_FILTERS = [
+    'live,alarm,-restore',
+    'trouble,-clock',
+    'live,tamper',
+]
+```
+
+```python regex filtering
+PUSHBULLET_ENABLE = True
+PUSHBULLET_KEY = 'o.AbCdEfGhIjKlMnOpQrStUvWxYz123456'
+PUSHBULLET_DEVICE = 'pai'
+PUSHBULLET_CONTACTS = ['alice@example.com', 'bob@example.com']
+PUSHBULLET_MIN_EVENT_LEVEL = 'WARN'
+PUSHBULLET_ALLOW_EVENTS = [r".*"]
+PUSHBULLET_IGNORE_EVENTS = [
+    r"zone,[\w]+,no_delay=True",
+    r"zone,[\w]+,exit_delay=.*",
+]
+```
+
+</CodeGroup>
+
+## How event filtering works
+
+PAI applies event filters before sending a notification. You can use one of two mutually exclusive approaches:
+
+<Tabs>
+  <Tab title="Tag filters (PUSHBULLET_EVENT_FILTERS)">
+    Each entry in `PUSHBULLET_EVENT_FILTERS` is a comma-separated list of tags. A `-` prefix means the tag must **not** be present. An event is forwarded if it matches **all** tags in **any** one filter entry.
+
+    ```python
+    PUSHBULLET_EVENT_FILTERS = [
+        'live,alarm,-restore',  # live alarm events that are not restores
+        'trouble,-clock',       # trouble events that are not clock-related
+        'live,tamper',          # live tamper events
+    ]
+    ```
+  </Tab>
+  <Tab title="Regex filters (PUSHBULLET_ALLOW_EVENTS / PUSHBULLET_IGNORE_EVENTS)">
+    Use `PUSHBULLET_ALLOW_EVENTS` as an allowlist and `PUSHBULLET_IGNORE_EVENTS` as a denylist. Patterns match against strings in the format `type,label,property=value`.
+
+    ```python
+    PUSHBULLET_ALLOW_EVENTS = [r".*"]  # allow everything...
+    PUSHBULLET_IGNORE_EVENTS = [       # ...except these
+        r"zone,[\w]+,no_delay=True",
+        r"zone,[\w]+,exit_delay=.*",
+    ]
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  Do not set both `PUSHBULLET_EVENT_FILTERS` and `PUSHBULLET_ALLOW_EVENTS` at the same time. Use one approach or the other.
+</Warning>

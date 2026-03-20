@@ -1,0 +1,132 @@
+---
+title: 'Resource limits'
+description: 'Control which zones, partitions, outputs, and users PAI monitors'
+---
+
+By default PAI monitors all resources on the panel. The `LIMITS` configuration option lets you restrict monitoring to specific subsets, which is useful for improving performance, reducing noise, and limiting exposure of resources you do not need to manage.
+
+## Why use limits
+
+- **Performance**: Fetching labels and status for every resource takes time at startup and during refreshes. Restricting to only the resources in use reduces this overhead significantly.
+- **Reduce noise**: Unused zones or keypads often generate spurious events. Excluding them keeps your event stream and MQTT topics clean.
+- **Privacy**: Limiting users or partitions prevents information about unused parts of the system from being published to interfaces like MQTT.
+
+## The LIMITS option
+
+`LIMITS` is a dictionary where each key is a resource type and each value specifies which IDs to include. An empty dictionary (the default) means no restrictions — all resources are monitored.
+
+### Supported resource types
+
+| Key | Description |
+|-----|-------------|
+| `zone` | Zones to monitor and control |
+| `user` | Users to consider |
+| `door` | Doors to consider |
+| `pgm` | PGM outputs to monitor and control |
+| `partition` | Partitions to monitor and control |
+| `module` | Bus modules to monitor |
+| `repeater` | Repeaters to monitor |
+| `keypad` | Keypads to monitor |
+
+### Value types
+
+Each resource type accepts one of these value types:
+
+- **`range`** — A Python range, e.g. `range(1, 17)` covers IDs 1 through 16.
+- **`list`** — An explicit list of IDs, e.g. `[1, 2, 3, 4]`.
+- **`'auto'`** — PAI detects which resources are actually present on the panel and monitors only those.
+
+<Note>
+  When a resource type is omitted from `LIMITS`, all IDs for that type are monitored. You only need to specify the types you want to restrict.
+</Note>
+
+## Configuration examples
+
+<CodeGroup>
+
+```python pai.conf
+LIMITS = {
+    'zone': range(1, 17),
+    'user': [1, 2, 3, 4],
+    'door': range(1, 32),
+    'pgm': range(1, 17),
+    'partition': [1, 2],
+    'module': range(1, 17),
+    'repeater': range(1, 9),
+    'keypad': range(1, 9)
+}
+```
+
+```json pai.json
+{
+  "LIMITS": {
+    "zone": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+    "user": [1, 2, 3, 4],
+    "door": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+             17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
+    "pgm": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+    "partition": [1, 2],
+    "module": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+    "repeater": [1, 2, 3, 4, 5, 6, 7, 8],
+    "keypad": [1, 2, 3, 4, 5, 6, 7, 8]
+  }
+}
+```
+
+```yaml pai.yaml
+LIMITS:
+  zone:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    - 8
+    - 9
+    - 10
+    - 11
+    - 12
+    - 13
+    - 14
+    - 15
+    - 16
+  user: [1, 2, 3, 4]
+  pgm: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+  partition: [1, 2]
+  module: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+  repeater: [1, 2, 3, 4, 5, 6, 7, 8]
+  keypad: [1, 2, 3, 4, 5, 6, 7, 8]
+```
+
+</CodeGroup>
+
+<Info>
+  JSON and YAML do not support Python `range()` expressions. You must enumerate all IDs as a list. For large ranges, the Python `.conf` format is more concise.
+</Info>
+
+## Using auto detection
+
+Setting a resource type's value to `'auto'` instructs PAI to query the panel at startup and monitor only the resources it finds are actually enrolled.
+
+```python pai.conf
+LIMITS = {
+    'zone': 'auto',
+    'partition': 'auto',
+    'pgm': 'auto',
+}
+```
+
+<Warning>
+  The `'auto'` value is only supported in the Python `.conf` format. JSON and YAML configs must use explicit lists. In code, `'auto'` causes PAI to fall back to the caller-supplied default list, meaning the behavior depends on the context in which the resource is resolved.
+</Warning>
+
+## Disabling limits
+
+To monitor all resources with no restrictions, set `LIMITS` to an empty dictionary or omit it entirely.
+
+```python pai.conf
+# Monitor everything (default behavior)
+LIMITS = {}
+```

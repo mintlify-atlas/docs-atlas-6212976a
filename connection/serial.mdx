@@ -1,0 +1,100 @@
+---
+title: 'Serial connection'
+description: 'Connect to your Paradox panel via the built-in serial port or a USB RS-232 adapter'
+---
+
+All Paradox MG, SP, and EVO panels include a built-in TTL 5V serial port. PAI communicates with the panel over this port using the `Serial` connection type.
+
+## Hardware requirements
+
+The panel's serial port operates at TTL 5V logic levels. Depending on how you connect, you may need additional hardware.
+
+<AccordionGroup>
+  <Accordion title="Raspberry Pi or similar GPIO-based host">
+    Raspberry Pi GPIO operates at 3.3V. Connecting directly to the panel's 5V serial port can damage the GPIO pins. You need a **bidirectional level shifter** (e.g. a 3.3V–5V logic level converter) between the Pi's UART pins and the panel.
+
+    Once wired through the level shifter, the serial port typically appears as `/dev/ttyS0` or `/dev/ttyAMA0` depending on your Pi model and OS configuration.
+  </Accordion>
+  <Accordion title="USB RS-232 TTL adapter">
+    A USB-to-TTL adapter lets you connect from any host with a USB port without GPIO wiring. Commonly supported adapters include:
+
+    - CP2102
+    - PL2303
+    - CH340
+
+    These enumerate as `/dev/ttyUSB0` (or `/dev/ttyUSB1`, etc.) on Linux.
+  </Accordion>
+  <Accordion title="USB 307 module">
+    Paradox manufactures a dedicated USB 307 module for connecting directly from a PC's USB port to the panel. It is treated as a standard serial port by the OS.
+  </Accordion>
+</AccordionGroup>
+
+## Common serial port paths on Linux
+
+| Port | Typical use |
+|---|---|
+| `/dev/ttyS0`, `/dev/ttyS1` | On-board UART (x86/x64 servers, some SBCs) |
+| `/dev/ttyAMA0` | Raspberry Pi primary UART |
+| `/dev/ttyUSB0` | First USB serial adapter (CP2102, PL2303, CH340) |
+| `/dev/ttyUSB1` | Second USB serial adapter |
+
+PAI will attempt to set read/write permissions on the port automatically if they are not already set.
+
+## Baud rates by panel family
+
+The correct baud rate depends on your panel model:
+
+| Panel family | Baud rate |
+|---|---|
+| SP (Spectra) | 9600 |
+| MG (Magellan) | 9600 |
+| EVO (standard) | 38400 or 57600 |
+| EVO+ versions | 115200 |
+
+<Warning>
+  Do not upgrade EVO firmware to version 7.50.000 or later if you use a serial connection. Paradox introduced serial communication encryption in that version, which prevents PAI from communicating with the panel. This is irreversible unless you purchase an unlock code from Paradox.
+</Warning>
+
+## Configuration
+
+Set the following options in `pai.conf`:
+
+| Option | Default | Description |
+|---|---|---|
+| `CONNECTION_TYPE` | `'Serial'` | Must be set to `'Serial'` |
+| `SERIAL_PORT` | `'/dev/ttyS1'` | Path to the serial device |
+| `SERIAL_BAUD` | `9600` | Baud rate matching your panel family |
+| `PASSWORD` | `None` | 4-digit PC password from Babyware. Set to `None` if not configured |
+
+The `PASSWORD` is the PC Communication password, not the user PIN. Find it in Babyware by right-clicking your panel and choosing **Properties → PC Communication (Babyware) → PC Communication (Babyware)** tab.
+
+## Example configuration
+
+<CodeGroup>
+
+```python Serial (SP/MG panel, built-in UART)
+CONNECTION_TYPE = 'Serial'
+SERIAL_PORT = '/dev/ttyS1'
+SERIAL_BAUD = 9600
+PASSWORD = '0000'
+```
+
+```python Serial (EVO panel, USB adapter)
+CONNECTION_TYPE = 'Serial'
+SERIAL_PORT = '/dev/ttyUSB0'
+SERIAL_BAUD = 38400
+PASSWORD = '0000'
+```
+
+```python Serial (EVO+ panel, USB adapter)
+CONNECTION_TYPE = 'Serial'
+SERIAL_PORT = '/dev/ttyUSB0'
+SERIAL_BAUD = 115200
+PASSWORD = '0000'
+```
+
+</CodeGroup>
+
+<Tip>
+  If PAI cannot open the serial port, check that the user running PAI is a member of the `dialout` group (`sudo usermod -aG dialout $USER`). PAI will also attempt to fix permissions automatically on startup.
+</Tip>

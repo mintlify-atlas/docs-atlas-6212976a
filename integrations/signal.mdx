@@ -1,0 +1,171 @@
+---
+title: "Signal Integration"
+description: "Send encrypted alarm notifications via Signal messenger using signal-cli"
+---
+
+The Signal integration lets PAI send alarm event notifications as Signal messages and accept panel control commands sent from allowed contacts. All messages are end-to-end encrypted using the Signal protocol.
+
+<Note>
+  The Signal integration requires a Linux host with DBUS (typically systemd-based). It communicates with [signal-cli](https://github.com/AsamK/signal-cli) over the system DBUS interface.
+</Note>
+
+## Prerequisites
+
+<Steps>
+  <Step title="Install signal-cli">
+    Download and install [signal-cli](https://github.com/AsamK/signal-cli). Follow the project's instructions to register a phone number and link it to a Signal account.
+  </Step>
+  <Step title="Run signal-cli as a DBUS daemon">
+    Start signal-cli in daemon mode so it exposes the `org.asamk.Signal` DBUS interface:
+
+    ```bash
+    signal-cli -u +1234567890 daemon --system
+    ```
+
+    For production use, configure signal-cli as a systemd service.
+  </Step>
+  <Step title="Install the Signal extra">
+    Install PAI with the `Signal` extra to get the required DBUS and GObject bindings:
+
+    ```bash
+    pip install "paradox-alarm-interface[Signal]"
+    ```
+
+    This installs `pygobject>=3.20.0`, `pydbus>=0.6.0`, and `gi>=1.2`.
+  </Step>
+</Steps>
+
+## Configuration
+
+Add the following to your `pai.conf`:
+
+```python pai.conf
+SIGNAL_ENABLE = True
+SIGNAL_CONTACTS = ['+1234567890', '+0987654321']  # Phone numbers allowed to send commands and receive notifications
+
+SIGNAL_MIN_EVENT_LEVEL = 'INFO'     # Minimum event level: DEBUG, INFO, WARN, ERROR, CRITICAL
+
+# Event filtering by tags (default):
+SIGNAL_EVENT_FILTERS = [
+    'live,alarm,-restore',  # Live alarm events, excluding restores
+    'trouble,-clock',       # Trouble events, excluding clock trouble
+    'live,tamper',          # Live tamper events
+]
+```
+
+### Configuration reference
+
+<AccordionGroup>
+  <Accordion title="SIGNAL_ENABLE">
+    Enable or disable the Signal interface.
+
+    **Default:** `False`
+  </Accordion>
+  <Accordion title="SIGNAL_CONTACTS">
+    A list of Signal contact identifiers (phone numbers in international format) that are allowed to both send commands to the panel and receive event notifications. Messages from numbers not in this list are logged as unknown and ignored.
+
+    **Default:** `[]`
+
+    **Example:**
+    ```python
+    SIGNAL_CONTACTS = ['+12125551234', '+442071234567']
+    ```
+  </Accordion>
+  <Accordion title="SIGNAL_MIN_EVENT_LEVEL">
+    The minimum severity level for events to be forwarded. Accepted values: `DEBUG`, `INFO`, `WARN`, `ERROR`, `CRITICAL`.
+
+    **Default:** `'INFO'`
+  </Accordion>
+  <Accordion title="SIGNAL_EVENT_FILTERS">
+    A list of tag expressions that control which events are sent. Each entry is a comma-separated list of tags; a `-` prefix excludes a tag. An event matches if all tags in any one expression match. Cannot be combined with `SIGNAL_ALLOW_EVENTS`.
+
+    **Default:**
+    ```python
+    [
+        'live,alarm,-restore',
+        'trouble,-clock',
+        'live,tamper',
+    ]
+    ```
+  </Accordion>
+  <Accordion title="SIGNAL_ALLOW_EVENTS and SIGNAL_IGNORE_EVENTS">
+    Alternative to `SIGNAL_EVENT_FILTERS` using regular expressions.
+
+    - `SIGNAL_ALLOW_EVENTS` — list of regex patterns matching `type,label,property=value` for events to forward.
+    - `SIGNAL_IGNORE_EVENTS` — list of regex patterns for events to suppress, applied after `ALLOW_EVENTS`.
+
+    **Default:** `[]` for both
+  </Accordion>
+</AccordionGroup>
+
+## Example configuration
+
+<CodeGroup>
+
+```python basic
+SIGNAL_ENABLE = True
+SIGNAL_CONTACTS = ['+12125551234']
+SIGNAL_MIN_EVENT_LEVEL = 'INFO'
+SIGNAL_EVENT_FILTERS = [
+    'live,alarm,-restore',
+    'trouble,-clock',
+    'live,tamper',
+]
+```
+
+```python regex filtering
+SIGNAL_ENABLE = True
+SIGNAL_CONTACTS = ['+12125551234', '+442071234567']
+SIGNAL_MIN_EVENT_LEVEL = 'INFO'
+SIGNAL_ALLOW_EVENTS = [r".*"]
+SIGNAL_IGNORE_EVENTS = [
+    r"zone,[\w]+,no_delay=True",
+    r"zone,[\w]+,exit_delay=.*",
+]
+```
+
+</CodeGroup>
+
+## How event filtering works
+
+<Tabs>
+  <Tab title="Tag filters (SIGNAL_EVENT_FILTERS)">
+    Each entry in `SIGNAL_EVENT_FILTERS` is a comma-separated list of tags. A `-` prefix means the tag must **not** be present. An event is forwarded if it matches **all** tags in **any** one filter entry.
+
+    ```python
+    SIGNAL_EVENT_FILTERS = [
+        'live,alarm,-restore',  # live alarm events that are not restores
+        'trouble,-clock',       # trouble events that are not clock-related
+        'live,tamper',          # live tamper events
+    ]
+    ```
+  </Tab>
+  <Tab title="Regex filters (SIGNAL_ALLOW_EVENTS / SIGNAL_IGNORE_EVENTS)">
+    Use `SIGNAL_ALLOW_EVENTS` as an allowlist and `SIGNAL_IGNORE_EVENTS` as a denylist. Patterns match against strings in the format `type,label,property=value`.
+
+    ```python
+    SIGNAL_ALLOW_EVENTS = [r".*"]  # allow everything...
+    SIGNAL_IGNORE_EVENTS = [       # ...except these
+        r"zone,[\w]+,no_delay=True",
+        r"zone,[\w]+,exit_delay=.*",
+    ]
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  Do not set both `SIGNAL_EVENT_FILTERS` and `SIGNAL_ALLOW_EVENTS` at the same time. Use one approach or the other.
+</Warning>
+
+## DBUS requirement
+
+<Warning>
+  The Signal integration uses `pydbus` to connect to signal-cli over the Linux system DBUS. This requires a Linux host running systemd with a DBUS daemon. macOS and Windows are not supported.
+</Warning>
+
+PAI connects to signal-cli via the `org.asamk.Signal` DBUS service on the system bus. Ensure signal-cli is running in daemon mode and accessible on the system bus before starting PAI.
+
+```bash
+# Verify signal-cli is reachable on DBUS
+busctl --system get-property org.asamk.Signal /org/asamk/Signal org.asamk.Signal Version
+```

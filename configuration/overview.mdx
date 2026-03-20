@@ -1,0 +1,149 @@
+---
+title: 'Configuration overview'
+description: 'Configure PAI using a .conf, .json, or .yaml file, or environment variables'
+---
+
+PAI reads its configuration from a file at startup. You can use Python (`.conf`), JSON, or YAML syntax. Settings can also be overridden at runtime using environment variables.
+
+## Config file formats
+
+PAI supports three file formats.
+
+| Format | Extensions | Notes |
+|--------|------------|-------|
+| Python | `.conf`, `.py` | Evaluated with `exec()`. Supports expressions like `15 * 60`. |
+| JSON | `.json` | Standard JSON. No comments or expressions. |
+| YAML | `.yaml` | Requires the `yaml` extra (`pip install pai[yaml]`). |
+
+## Config file search order
+
+When no explicit path is given, PAI searches for a config file in these locations, in order:
+
+<Steps>
+  <Step title="Current working directory">
+    `./pai.conf`, `./pai.json`, `./pai.yaml`
+  </Step>
+  <Step title="User local config">
+    `~/.local/etc/pai.conf`, `~/.local/etc/pai.json`, `~/.local/etc/pai.yaml`
+  </Step>
+  <Step title="System config">
+    `/etc/pai/pai.conf`, `/etc/pai/pai.json`, `/etc/pai/pai.yaml`
+  </Step>
+  <Step title="Local system config">
+    `/usr/local/etc/pai/pai.conf`, `/usr/local/etc/pai/pai.json`, `/usr/local/etc/pai/pai.yaml`
+  </Step>
+</Steps>
+
+The first matching file found is used. If no file is found, PAI exits with an error.
+
+<Tip>
+  Set the `PAI_CONFIG_FILE` environment variable to point PAI directly to a config file at any path, bypassing the search order entirely.
+
+  ```bash
+  PAI_CONFIG_FILE=/opt/myconfig/pai.conf pai
+  ```
+</Tip>
+
+## Environment variable overrides
+
+Any configuration key can be overridden by an environment variable prefixed with `PAI_`. PAI strips the prefix and matches the remainder against known config keys.
+
+```bash
+# Equivalent to setting MQTT_ENABLE = True in the config file
+export PAI_MQTT_ENABLE=true
+
+# Equivalent to setting KEEP_ALIVE_INTERVAL = 30
+export PAI_KEEP_ALIVE_INTERVAL=30
+```
+
+<Note>
+  Environment variables are applied after the config file is read, so they take precedence over file-based settings.
+</Note>
+
+## Config file examples
+
+<CodeGroup>
+
+```python pai.conf
+# /etc/pai/pai.conf
+import logging
+
+# Connection
+CONNECTION_TYPE = 'Serial'
+SERIAL_PORT = '/dev/ttyS1'
+SERIAL_BAUD = 9600
+
+# Logging
+LOGGING_LEVEL_CONSOLE = logging.INFO
+LOGGING_LEVEL_FILE = logging.ERROR
+LOGGING_FILE = '/var/log/paradox.log'
+
+# Panel
+PASSWORD = '0000'
+KEEP_ALIVE_INTERVAL = 10
+SYNC_TIME = False
+
+# MQTT
+MQTT_ENABLE = True
+MQTT_HOST = '127.0.0.1'
+MQTT_PORT = 1883
+```
+
+```json pai.json
+{
+  "CONNECTION_TYPE": "Serial",
+  "SERIAL_PORT": "/dev/ttyS1",
+  "SERIAL_BAUD": 9600,
+
+  "LOGGING_LEVEL_CONSOLE": 20,
+  "LOGGING_LEVEL_FILE": 40,
+  "LOGGING_FILE": "/var/log/paradox.log",
+
+  "PASSWORD": "0000",
+  "KEEP_ALIVE_INTERVAL": 10,
+  "SYNC_TIME": false,
+
+  "MQTT_ENABLE": true,
+  "MQTT_HOST": "127.0.0.1",
+  "MQTT_PORT": 1883
+}
+```
+
+```yaml pai.yaml
+CONNECTION_TYPE: Serial
+SERIAL_PORT: /dev/ttyS1
+SERIAL_BAUD: 9600
+
+LOGGING_LEVEL_CONSOLE: 20
+LOGGING_LEVEL_FILE: 40
+LOGGING_FILE: /var/log/paradox.log
+
+PASSWORD: "0000"
+KEEP_ALIVE_INTERVAL: 10
+SYNC_TIME: false
+
+MQTT_ENABLE: true
+MQTT_HOST: 127.0.0.1
+MQTT_PORT: 1883
+```
+
+</CodeGroup>
+
+<Warning>
+  YAML support requires an optional dependency. Install it with `pip install pai[yaml]` before using a `.yaml` config file.
+</Warning>
+
+<Info>
+  In JSON and YAML files, logging levels must be specified as integers. The Python `logging` module values are: `DEBUG=10`, `INFO=20`, `WARNING=30`, `ERROR=40`, `CRITICAL=50`.
+</Info>
+
+## Next steps
+
+<Columns cols={2}>
+  <Card title="General settings" icon="sliders" href="/configuration/general">
+    Connection, logging, panel behavior, and timing options.
+  </Card>
+  <Card title="Resource limits" icon="filter" href="/configuration/limits">
+    Restrict which zones, partitions, outputs, and users PAI monitors.
+  </Card>
+</Columns>

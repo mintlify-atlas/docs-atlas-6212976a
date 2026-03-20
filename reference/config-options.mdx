@@ -1,0 +1,611 @@
+---
+title: "Configuration Options Reference"
+description: "Complete reference for all PAI configuration options with defaults and valid values"
+---
+
+All configuration options are set in your `pai.conf` (Python/YAML/JSON) file or via environment variables prefixed with `PAI_` (e.g. `PAI_MQTT_ENABLE=True`).
+
+<Info>
+Configuration files are searched in this order: current directory, `~/.local/etc`, `/etc/pai`, `/usr/local/etc/pai`. Supported formats are `.conf` / `.py`, `.json`, and `.yaml`.
+</Info>
+
+## Logging
+
+<ParamField path="LOGGING_LEVEL_CONSOLE" type="int" default="logging.INFO">
+  Console log level. Use Python `logging` constants: `logging.DEBUG` (10), `logging.INFO` (20), `logging.WARNING` (30), `logging.ERROR` (40), `logging.CRITICAL` (50).
+</ParamField>
+
+<ParamField path="LOGGING_LEVEL_FILE" type="int" default="logging.ERROR">
+  File log level. Same values as `LOGGING_LEVEL_CONSOLE`.
+</ParamField>
+
+<ParamField path="LOGGING_FILE" type="string | null" default="None">
+  Path to the log file, e.g. `/var/log/paradox.log`. Set to `None` to disable file logging.
+</ParamField>
+
+<ParamField path="LOGGING_FILE_MAX_SIZE" type="int" default="10">
+  Maximum log file size in MB before rotation. Range: 0–4294967295.
+</ParamField>
+
+<ParamField path="LOGGING_FILE_MAX_FILES" type="int" default="2">
+  Number of rotated log files to keep. Range: 0–4294967295.
+</ParamField>
+
+<ParamField path="LOGGING_DUMP_PACKETS" type="bool" default="False">
+  Dump raw packets to the log. Useful for low-level protocol debugging.
+</ParamField>
+
+<ParamField path="LOGGING_DUMP_MESSAGES" type="bool" default="False">
+  Dump decoded messages to the log.
+</ParamField>
+
+<ParamField path="LOGGING_DUMP_STATUS" type="bool" default="False">
+  Dump panel status to the log on every poll.
+</ParamField>
+
+<ParamField path="LOGGING_DUMP_EVENTS" type="bool" default="False">
+  Dump full event details to the log.
+</ParamField>
+
+<ParamField path="DEVELOPMENT_DUMP_MEMORY" type="bool" default="False">
+  Dump panel memory on startup. Development use only.
+</ParamField>
+
+---
+
+## Connection
+
+<ParamField path="CONNECTION_TYPE" type="string" default="Serial">
+  Transport type to use when connecting to the panel. Valid values: `Serial`, `IP`.
+</ParamField>
+
+### Serial connection
+
+<ParamField path="SERIAL_PORT" type="string" default="/dev/ttyS1">
+  Pathname of the serial port device, e.g. `/dev/ttyUSB0`.
+</ParamField>
+
+<ParamField path="SERIAL_BAUD" type="int" default="9600">
+  Baud rate of the serial port. Use `9600` for SP/MG panels. For EVO panels use `38400` (default EVO setting) or `57600`. For EVO+ use `115200`.
+</ParamField>
+
+### IP connection
+
+<ParamField path="IP_CONNECTION_HOST" type="string" default="127.0.0.1">
+  Hostname or IP address of the IP150 module.
+</ParamField>
+
+<ParamField path="IP_CONNECTION_PORT" type="int" default="10000">
+  TCP port of the IP150 module. Range: 1–65535.
+</ParamField>
+
+<ParamField path="IP_CONNECTION_PASSWORD" type="string | bytes | null" default="paradox">
+  IP module password. The factory default is `paradox`.
+</ParamField>
+
+<ParamField path="IP_CONNECTION_SITEID" type="string | null" default="None">
+  Paradox SITE ID for cloud-based connections. When set, PAI connects via the Paradox cloud instead of directly to the IP module.
+</ParamField>
+
+<ParamField path="IP_CONNECTION_EMAIL" type="string | null" default="None">
+  Email address registered for the SITE ID connection.
+</ParamField>
+
+<ParamField path="IP_CONNECTION_PANEL_SERIAL" type="string | null" default="None">
+  Panel serial number for multi-panel SITE ID setups. Set to `None` to use the first panel found.
+</ParamField>
+
+<ParamField path="IP_CONNECTION_BARE" type="bool" default="False">
+  Connect directly to the panel without an IP150 module. Use this for serial-over-TCP tunnels.
+</ParamField>
+
+---
+
+## Panel behavior
+
+<ParamField path="KEEP_ALIVE_INTERVAL" type="int" default="10">
+  Interval in seconds between panel status polls.
+</ParamField>
+
+<ParamField path="IO_TIMEOUT" type="float" default="0.5">
+  Timeout in seconds for individual I/O operations.
+</ParamField>
+
+<ParamField path="LIMITS" type="object" default="{}">
+  Restrict which elements PAI monitors. By default all elements are monitored. Specify ranges or lists per element type.
+
+  ```python pai.conf
+  LIMITS = {
+      'zone': range(1, 17),      # Zones 1-16
+      'partition': [1, 2],       # Partitions 1 and 2
+      'user': [1, 2, 3, 4],
+      'door': range(1, 32),
+      'pgm': range(1, 17),
+      'module': range(1, 17),
+      'repeater': range(1, 9),
+      'keypad': range(1, 9),
+  }
+  ```
+</ParamField>
+
+<ParamField path="LABEL_ENCODING" type="string" default="paradox-en">
+  Encoding used when decoding element labels from the panel. Use `paradox-*` values or any [Python standard encoding](https://docs.python.org/3/library/codecs.html#standard-encodings).
+</ParamField>
+
+<ParamField path="LABEL_REFRESH_INTERVAL" type="int" default="900">
+  Interval in seconds between full label refreshes from the panel. Default is 15 minutes (900 s). Range: 0–4294967295.
+</ParamField>
+
+<ParamField path="OUTPUT_PULSE_DURATION" type="float" default="1">
+  Duration in seconds for a PGM output pulse command. Range: 0–4294967295.
+</ParamField>
+
+<ParamField path="SYNC_TIME" type="bool" default="False">
+  Periodically synchronize the panel clock when drift exceeds `SYNC_TIME_MIN_DRIFT`.
+</ParamField>
+
+<ParamField path="SYNC_TIME_MIN_DRIFT" type="int" default="120">
+  Minimum clock drift in seconds before triggering a time sync. Range: 120–4294967295.
+</ParamField>
+
+<ParamField path="SYNC_TIME_TIMEZONE" type="string" default="">
+  Timezone for panel time synchronization (e.g. `Europe/London`). Defaults to the PAI host timezone when empty.
+</ParamField>
+
+<ParamField path="PASSWORD" type="int | string | bytes | null" default="None">
+  PC Password for panel communication. Set to `None` if the panel has no password configured. Found in Babyware under Panel Properties → PC Communication → PC Communication tab.
+</ParamField>
+
+<ParamField path="POWER_UPDATE_INTERVAL" type="int" default="60">
+  Interval in seconds between reads of battery, DC, and VDC voltages. Range: 0–4294967295.
+</ParamField>
+
+<ParamField path="PUSH_POWER_UPDATE_WITHOUT_CHANGE" type="bool" default="True">
+  Always push power voltage readings to interfaces even if the values have not changed.
+</ParamField>
+
+<ParamField path="PUSH_UPDATE_WITHOUT_CHANGE" type="bool" default="False">
+  Always push all state updates to interfaces even if nothing has changed.
+</ParamField>
+
+---
+
+## MQTT
+
+<ParamField path="MQTT_ENABLE" type="bool" default="False">
+  Enable the MQTT interface.
+</ParamField>
+
+<ParamField path="MQTT_HOST" type="string" default="127.0.0.1">
+  Hostname or IP address of the MQTT broker.
+</ParamField>
+
+<ParamField path="MQTT_PORT" type="int" default="1883">
+  TCP port of the MQTT broker. When `MQTT_TLS_CERT_PATH` is set this becomes the TLS port. Range: 1–65535.
+</ParamField>
+
+<ParamField path="MQTT_TLS_CERT_PATH" type="string | null" default="None">
+  Path to a CA certificate file for TLS connections, e.g. `/etc/pai/certs/ca.pem`. Set to `None` for plain TCP.
+</ParamField>
+
+<ParamField path="MQTT_KEEPALIVE" type="int" default="60">
+  MQTT keepalive interval in seconds. Range: 1–3600.
+</ParamField>
+
+<ParamField path="MQTT_USERNAME" type="string | null" default="None">
+  MQTT broker username. Set to `None` for unauthenticated connections.
+</ParamField>
+
+<ParamField path="MQTT_PASSWORD" type="string | null" default="None">
+  MQTT broker password.
+</ParamField>
+
+<ParamField path="MQTT_RETAIN" type="bool" default="True">
+  Publish all messages with the MQTT retain flag.
+</ParamField>
+
+<ParamField path="MQTT_QOS" type="int" default="0">
+  MQTT QoS level for published messages. `0` = fire and forget, `1` = at least once, `2` = exactly once. Range: 0–2.
+</ParamField>
+
+<ParamField path="MQTT_PROTOCOL" type="string" default="3.1.1">
+  MQTT protocol version. Valid values: `3.1`, `3.1.1`, `5`.
+</ParamField>
+
+<ParamField path="MQTT_TRANSPORT" type="string" default="tcp">
+  MQTT transport layer. Valid values: `tcp`, `websockets`.
+</ParamField>
+
+<ParamField path="MQTT_BIND_ADDRESS" type="string" default="">
+  Local network address to bind the MQTT client to. Empty string lets Paho choose automatically.
+</ParamField>
+
+<ParamField path="MQTT_BIND_PORT" type="int" default="0">
+  Local port to bind the MQTT client to. `0` lets Paho choose automatically.
+</ParamField>
+
+<ParamField path="MQTT_REPUBLISH_INTERVAL" type="int" default="43200">
+  Interval in seconds for republishing all state data to MQTT (default 12 hours). Range: 60–4294967295.
+</ParamField>
+
+<ParamField path="MQTT_PUBLISH_DEFINITIONS" type="bool" default="False">
+  Publish element definitions (partition/zone/user metadata) to MQTT. Not required in most setups.
+</ParamField>
+
+<ParamField path="MQTT_USE_NUMERIC_STATES" type="bool" default="False">
+  Publish `0` and `1` instead of `False` and `True` for boolean state values.
+</ParamField>
+
+<ParamField path="MQTT_TOGGLE_CODES" type="object" default="{}">
+  Map of MQTT toggle codes for controlling outputs.
+</ParamField>
+
+<ParamField path="MQTT_DASH_PUBLISH" type="bool" default="False">
+  Publish data in MQTT Dash format.
+</ParamField>
+
+<ParamField path="MQTT_DASH_TOPIC" type="string" default="metrics/exchange/pai">
+  MQTT topic for MQTT Dash data.
+</ParamField>
+
+<ParamField path="MQTT_DASH_TEMPLATE" type="string" default="/etc/pai/mqtt_dash.txt">
+  Path to the MQTT Dash template file.
+</ParamField>
+
+<ParamField path="MQTT_CHALLENGE_SECRET" type="string | null" default="None">
+  Shared secret for MQTT command authorization challenge. When set, commands must include a valid HMAC challenge response.
+</ParamField>
+
+<ParamField path="MQTT_CHALLENGE_TOPIC" type="string" default="challenge">
+  Sub-topic used for the MQTT command authorization challenge exchange.
+</ParamField>
+
+<ParamField path="MQTT_CHALLENGE_ROUNDS" type="int" default="1000">
+  Number of HMAC rounds used in the challenge computation.
+</ParamField>
+
+<ParamField path="MQTT_PUBLISH_COMMAND_STATUS" type="bool" default="False">
+  Publish the result of executed commands to `MQTT_COMMAND_STATUS_TOPIC`.
+</ParamField>
+
+<ParamField path="MQTT_COMMAND_STATUS_TOPIC" type="string" default="command_status">
+  Sub-topic for command execution status messages.
+</ParamField>
+
+---
+
+## MQTT topics
+
+<ParamField path="MQTT_BASE_TOPIC" type="string" default="paradox">
+  Root prefix for all PAI MQTT topics.
+</ParamField>
+
+<ParamField path="MQTT_ZONE_TOPIC" type="string" default="zones">
+  Sub-topic segment for zone state messages.
+</ParamField>
+
+<ParamField path="MQTT_PARTITION_TOPIC" type="string" default="partitions">
+  Sub-topic segment for partition state messages.
+</ParamField>
+
+<ParamField path="MQTT_BUS_TOPIC" type="string" default="buses">
+  Sub-topic segment for bus state messages.
+</ParamField>
+
+<ParamField path="MQTT_MODULE_TOPIC" type="string" default="bus-module">
+  Sub-topic segment for bus module state messages.
+</ParamField>
+
+<ParamField path="MQTT_SYSTEM_TOPIC" type="string" default="system">
+  Sub-topic segment for panel/system state messages.
+</ParamField>
+
+<ParamField path="MQTT_REPEATER_TOPIC" type="string" default="repeaters">
+  Sub-topic segment for repeater state messages.
+</ParamField>
+
+<ParamField path="MQTT_USER_TOPIC" type="string" default="users">
+  Sub-topic segment for user state messages.
+</ParamField>
+
+<ParamField path="MQTT_EVENTS_TOPIC" type="string" default="events">
+  Sub-topic segment for event messages.
+</ParamField>
+
+<ParamField path="MQTT_CONTROL_TOPIC" type="string" default="control">
+  Sub-topic segment for inbound control commands.
+</ParamField>
+
+<ParamField path="MQTT_DEFINITION_TOPIC" type="string" default="definitions">
+  Sub-topic segment for element definition messages.
+</ParamField>
+
+<ParamField path="MQTT_OUTPUT_TOPIC" type="string" default="outputs">
+  Sub-topic segment for PGM output state messages.
+</ParamField>
+
+<ParamField path="MQTT_DOOR_TOPIC" type="string" default="doors">
+  Sub-topic segment for door state messages.
+</ParamField>
+
+<ParamField path="MQTT_KEYPAD_TOPIC" type="string" default="keypads">
+  Sub-topic segment for keypad state messages.
+</ParamField>
+
+<ParamField path="MQTT_STATES_TOPIC" type="string" default="states">
+  Sub-topic segment appended after each element name for state properties.
+</ParamField>
+
+<ParamField path="MQTT_RAW_TOPIC" type="string" default="raw">
+  Sub-topic for raw event JSON messages.
+</ParamField>
+
+<ParamField path="MQTT_NOTIFICATIONS_TOPIC" type="string" default="notifications">
+  Sub-topic for notification messages.
+</ParamField>
+
+<ParamField path="MQTT_SEND_PANIC_TOPIC" type="string" default="panic">
+  Sub-topic for triggering a panic from MQTT.
+</ParamField>
+
+<ParamField path="MQTT_PUBLISH_RAW_EVENTS" type="bool" default="True">
+  Publish raw event JSON to `{base}/{events}/{raw}`.
+</ParamField>
+
+<ParamField path="MQTT_INTERFACE_TOPIC" type="string" default="interface">
+  Sub-topic for PAI interface status messages (PAI run state, availability).
+</ParamField>
+
+<ParamField path="MQTT_HOMEASSISTANT_CONTROL_TOPIC" type="string" default="hass_control">
+  Sub-topic for Home Assistant specific control commands.
+</ParamField>
+
+<ParamField path="MQTT_HOMEASSISTANT_DISCOVERY_PREFIX" type="string" default="homeassistant">
+  Root topic prefix used for Home Assistant MQTT discovery messages.
+</ParamField>
+
+---
+
+## MQTT Home Assistant auto discovery
+
+<ParamField path="MQTT_HOMEASSISTANT_AUTODISCOVERY_ENABLE" type="bool" default="False">
+  Publish Home Assistant MQTT discovery payloads so that partitions and zones appear automatically in HA.
+</ParamField>
+
+<ParamField path="MQTT_HOMEASSISTANT_CODE" type="string | null" default="None">
+  Alarm code to embed in Home Assistant discovery payloads (used by the HA alarm panel card).
+</ParamField>
+
+<ParamField path="MQTT_HOMEASSISTANT_ENTITY_PREFIX" type="string" default="">
+  Prefix string for all Home Assistant entity names. Supports `{serial_number}` and `{model}` placeholders, e.g. `Paradox {serial_number} `.
+</ParamField>
+
+<ParamField path="MQTT_PREFIX_DEVICE_NAME" type="bool" default="False">
+  Prefix entity names with the device ID (`Paradox 12345678`).
+</ParamField>
+
+<ParamField path="HOMEASSISTANT_PUBLISH_PARTITION_PROPERTIES" type="string[]" default="['target_state', 'current_state']">
+  List of partition property names to publish for Home Assistant discovery.
+</ParamField>
+
+<ParamField path="HOMEASSISTANT_PUBLISH_ZONE_PROPERTIES" type="string[]" default="['open', 'tamper']">
+  List of zone property names to publish for Home Assistant discovery.
+</ParamField>
+
+---
+
+## Home Assistant notifications
+
+<Info>
+Requires Home Assistant Supervisor (HASS.io) or a Long-Lived Access Token.
+</Info>
+
+<ParamField path="HOMEASSISTANT_NOTIFICATIONS_ENABLE" type="bool" default="False">
+  Enable pushing PAI events as Home Assistant notifications.
+</ParamField>
+
+<ParamField path="HOMEASSISTANT_NOTIFICATIONS_API_URL" type="string" default="http://supervisor/core/api/services/:domain/:service">
+  Home Assistant REST API endpoint for triggering notification services.
+</ParamField>
+
+<ParamField path="HOMEASSISTANT_NOTIFICATIONS_API_TOKEN" type="string" default="">
+  Long-Lived Access Token for authenticating with the HA API when not using Supervisor.
+</ParamField>
+
+<ParamField path="HOMEASSISTANT_NOTIFICATIONS_LOVELACE_URI" type="string" default="">
+  URI to open in the HA app when the notification is tapped.
+</ParamField>
+
+<ParamField path="HOMEASSISTANT_NOTIFICATIONS_NOTIFIER_NAME" type="string" default="notify">
+  Name of the HA notifier service to call.
+</ParamField>
+
+<ParamField path="HOMEASSISTANT_NOTIFICATIONS_MIN_EVENT_LEVEL" type="string" default="INFO">
+  Minimum event severity to send as a notification. Valid values: `DEBUG`, `INFO`, `WARN`, `ERROR`, `CRITICAL`.
+</ParamField>
+
+<ParamField path="HOMEASSISTANT_NOTIFICATIONS_EVENT_FILTERS" type="string[]" default="['live,alarm,-restore', 'trouble,-clock', 'live,tamper']">
+  Tag-based event filters. Each entry is a comma-separated list of tags to match (prefix with `-` to exclude). Used when `HOMEASSISTANT_NOTIFICATIONS_ALLOW_EVENTS` is not set.
+</ParamField>
+
+<ParamField path="HOMEASSISTANT_NOTIFICATIONS_ALLOW_EVENTS" type="string[]" default="[]">
+  Whitelist of regexp patterns matching `type,label,property=value` event strings. When set, overrides `EVENT_FILTERS`.
+</ParamField>
+
+<ParamField path="HOMEASSISTANT_NOTIFICATIONS_IGNORE_EVENTS" type="string[]" default="[]">
+  Regexp patterns to exclude from events that matched `ALLOW_EVENTS`.
+</ParamField>
+
+---
+
+## Pushbullet
+
+<ParamField path="PUSHBULLET_ENABLE" type="bool" default="False">
+  Enable the Pushbullet interface.
+</ParamField>
+
+<ParamField path="PUSHBULLET_KEY" type="string" default="">
+  Pushbullet API authentication key.
+</ParamField>
+
+<ParamField path="PUSHBULLET_DEVICE" type="string" default="pai">
+  Pushbullet device name to send notifications from.
+</ParamField>
+
+<ParamField path="PUSHBULLET_CONTACTS" type="string[]" default="[]">
+  Pushbullet user identifiers allowed to receive notifications and send commands.
+</ParamField>
+
+<ParamField path="PUSHBULLET_MIN_EVENT_LEVEL" type="string" default="INFO">
+  Minimum event severity for Pushbullet notifications. Valid values: `DEBUG`, `INFO`, `WARN`, `ERROR`, `CRITICAL`.
+</ParamField>
+
+<ParamField path="PUSHBULLET_EVENT_FILTERS" type="string[]" default="['live,alarm,-restore', 'trouble,-clock', 'live,tamper']">
+  Tag-based event filters for Pushbullet.
+</ParamField>
+
+<ParamField path="PUSHBULLET_ALLOW_EVENTS" type="string[]" default="[]">
+  Regexp whitelist for Pushbullet events.
+</ParamField>
+
+<ParamField path="PUSHBULLET_IGNORE_EVENTS" type="string[]" default="[]">
+  Regexp exclusion list for Pushbullet events.
+</ParamField>
+
+---
+
+## Pushover
+
+<ParamField path="PUSHOVER_ENABLE" type="bool" default="False">
+  Enable the Pushover interface.
+</ParamField>
+
+<ParamField path="PUSHOVER_KEY" type="string" default="">
+  Pushover application token.
+</ParamField>
+
+<ParamField path="PUSHOVER_BROADCAST_KEYS" type="object[]" default="[]">
+  List of Pushover user or group key objects to receive notifications. Each object has a `user_key` and `devices` field (`*` or a comma-separated list of device names).
+
+  ```python pai.conf
+  PUSHOVER_BROADCAST_KEYS = [
+      {'user_key': '<user_key>', 'devices': '*'}
+  ]
+  ```
+</ParamField>
+
+<ParamField path="PUSHOVER_MIN_EVENT_LEVEL" type="string" default="INFO">
+  Minimum event severity for Pushover notifications. Valid values: `DEBUG`, `INFO`, `WARN`, `ERROR`, `CRITICAL`.
+</ParamField>
+
+<ParamField path="PUSHOVER_EVENT_FILTERS" type="string[]" default="['live,alarm,-restore', 'trouble,-clock', 'live,tamper']">
+  Tag-based event filters for Pushover.
+</ParamField>
+
+<ParamField path="PUSHOVER_ALLOW_EVENTS" type="string[]" default="[]">
+  Regexp whitelist for Pushover events.
+</ParamField>
+
+<ParamField path="PUSHOVER_IGNORE_EVENTS" type="string[]" default="[]">
+  Regexp exclusion list for Pushover events.
+</ParamField>
+
+---
+
+## Signal
+
+<ParamField path="SIGNAL_ENABLE" type="bool" default="False">
+  Enable the Signal messenger interface.
+</ParamField>
+
+<ParamField path="SIGNAL_CONTACTS" type="string[]" default="[]">
+  Signal contact phone numbers allowed to control the panel and receive event notifications.
+</ParamField>
+
+<ParamField path="SIGNAL_MIN_EVENT_LEVEL" type="string" default="INFO">
+  Minimum event severity for Signal notifications. Valid values: `DEBUG`, `INFO`, `WARN`, `ERROR`, `CRITICAL`.
+</ParamField>
+
+<ParamField path="SIGNAL_EVENT_FILTERS" type="string[]" default="['live,alarm,-restore', 'trouble,-clock', 'live,tamper']">
+  Tag-based event filters for Signal.
+</ParamField>
+
+<ParamField path="SIGNAL_ALLOW_EVENTS" type="string[]" default="[]">
+  Regexp whitelist for Signal events.
+</ParamField>
+
+<ParamField path="SIGNAL_IGNORE_EVENTS" type="string[]" default="[]">
+  Regexp exclusion list for Signal events.
+</ParamField>
+
+---
+
+## GSM
+
+<ParamField path="GSM_ENABLE" type="bool" default="False">
+  Enable the GSM/SMS interface.
+</ParamField>
+
+<ParamField path="GSM_MODEM_PORT" type="string" default="">
+  Serial port path for the GSM modem, e.g. `/dev/ttyUSB0`.
+</ParamField>
+
+<ParamField path="GSM_MODEM_BAUDRATE" type="int" default="115200">
+  Baud rate for the GSM modem serial connection. Range: 9600–115200.
+</ParamField>
+
+<ParamField path="GSM_CONTACTS" type="string[]" default="[]">
+  Phone numbers allowed to receive SMS notifications and send panel control commands.
+</ParamField>
+
+<ParamField path="GSM_MIN_EVENT_LEVEL" type="string" default="CRITICAL">
+  Minimum event severity for GSM/SMS notifications. Valid values: `DEBUG`, `INFO`, `WARN`, `ERROR`, `CRITICAL`.
+</ParamField>
+
+<ParamField path="GSM_EVENT_FILTERS" type="string[]" default="['live,zone,alarm,trigger']">
+  Tag-based event filters for GSM.
+</ParamField>
+
+<ParamField path="GSM_ALLOW_EVENTS" type="string[]" default="[]">
+  Regexp whitelist for GSM events.
+</ParamField>
+
+<ParamField path="GSM_IGNORE_EVENTS" type="string[]" default="[]">
+  Regexp exclusion list for GSM events.
+</ParamField>
+
+---
+
+## IP interface
+
+<ParamField path="IP_INTERFACE_ENABLE" type="bool" default="False">
+  Enable the IP socket interface that emulates an IP150 module.
+</ParamField>
+
+<ParamField path="IP_INTERFACE_BIND_ADDRESS" type="string" default="0.0.0.0">
+  Local address for the IP interface to listen on.
+</ParamField>
+
+<ParamField path="IP_INTERFACE_BIND_PORT" type="int" default="10000">
+  TCP port for the IP interface. Range: 1–65535.
+</ParamField>
+
+<ParamField path="IP_INTERFACE_PASSWORD" type="string | bytes | null" default="paradox">
+  Password for authenticating clients connecting to the IP interface.
+</ParamField>
+
+---
+
+## Interfaces
+
+<ParamField path="COMMAND_ALIAS" type="object" default="{'arm': 'partition all arm', 'disarm': 'partition all disarm'}">
+  Aliases for text-based interface commands (Signal, Pushbullet, GSM). Maps short alias strings to full PAI commands.
+
+  See [Command Alias Reference](/reference/command-alias) for full details and available commands.
+</ParamField>
+
+<ParamField path="MQTT_COMMAND_ALIAS" type="object" default="{'armed_home': 'arm_stay', 'armed_night': 'arm_sleep', 'armed_away': 'arm', 'disarmed': 'disarm'}">
+  Aliases for MQTT control topic commands. Maps external command names (e.g. Home Assistant / Homebridge state strings) to PAI partition commands.
+
+  See [Command Alias Reference](/reference/command-alias) for full details.
+</ParamField>

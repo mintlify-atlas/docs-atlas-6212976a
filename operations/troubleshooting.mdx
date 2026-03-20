@@ -1,0 +1,251 @@
+---
+title: "Troubleshooting"
+description: "Diagnose and fix common PAI connection and configuration issues"
+---
+
+<AccordionGroup>
+  <Accordion title="PAI cannot find the config file">
+    PAI searches for a configuration file in the following order:
+
+    1. Path passed via the `--config` CLI argument
+    2. Path in the `PAI_CONFIG_FILE` environment variable
+    3. The following locations, in order, for each of `pai.conf`, `pai.json`, and `pai.yaml`:
+       - Current working directory
+       - `~/.local/etc/`
+       - `/etc/pai/`
+       - `/usr/local/etc/pai/`
+
+    If none of those exist, PAI prints:
+
+    ```
+    ERROR: Could not find configuration file. Tried: [...]
+    ```
+
+    **Fix:** Create `/etc/pai/pai.conf` (copy from `config/pai.conf.example`), or set the `PAI_CONFIG_FILE` environment variable to your config file's absolute path.
+
+    When running in Docker, mount your config directory:
+
+    ```bash
+    docker run ... -v /etc/pai:/etc/pai paradoxalarminterface/pai
+    ```
+
+    The Docker image sets `PAI_CONFIG_FILE=/etc/pai/pai.conf` by default.
+  </Accordion>
+
+  <Accordion title="Cannot connect to serial port">
+    **Check the port path**
+
+    The default in `pai.conf` is `/dev/ttyS1`. USB serial adapters (CP2102, PL2303, CH340) typically appear as `/dev/ttyUSB0`. Verify the device exists:
+
+    ```bash
+    ls -la /dev/ttyUSB* /dev/ttyS*
+    ```
+
+    Update your config to match:
+
+    ```python pai.conf
+    SERIAL_PORT = '/dev/ttyUSB0'
+    ```
+
+    **Check permissions**
+
+    The user running PAI must be in the `dialout` group to access serial ports:
+
+    ```bash
+    sudo usermod -aG dialout $USER
+    ```
+
+    Log out and back in for the group change to take effect. When running Docker, pass the device through:
+
+    ```bash
+    docker run --device=/dev/ttyUSB0 ...
+    ```
+
+    **Verify the baud rate**
+
+    The baud rate must match your panel type:
+
+    | Panel | Baud rate |
+    |---|---|
+    | SP / MG (Spectra, Magellan) | `9600` |
+    | EVO (default) | `38400` |
+    | EVO (alternate) | `57600` |
+
+    ```python pai.conf
+    SERIAL_BAUD = 9600   # SP/MG panels
+    # SERIAL_BAUD = 38400  # EVO panels
+    ```
+
+    **Raspberry Pi GPIO serial port**
+
+    Paradox panels use TTL 5V logic. Connecting a 3.3 V GPIO pin directly to the panel will damage the Raspberry Pi or cause unreliable communication. Use a level shifter between the panel's serial port and the Pi's GPIO.
+  </Accordion>
+
+  <Accordion title="Cannot connect to IP150">
+    **Check host and port**
+
+    ```python pai.conf
+    CONNECTION_TYPE = 'IP'
+    IP_CONNECTION_HOST = '192.168.1.100'  # IP150 address on your network
+    IP_CONNECTION_PORT = 10000            # Default port
+    ```
+
+    Verify the IP150 is reachable from the PAI host:
+
+    ```bash
+    ping 192.168.1.100
+    ```
+
+    **Check the module password**
+
+    The default IP module password is `paradox`. If you changed it in the IP150 configuration, update:
+
+    ```python pai.conf
+    IP_CONNECTION_PASSWORD = 'paradox'
+    ```
+
+    **Firmware version matters**
+
+    PAI supports direct connection to IP150 when the module firmware is below 4.0 or at 4.40.004 and above. Firmware versions between 4.0 and 4.40.004 require connecting through the Paradox SWAN cloud service via `IP_CONNECTION_SITEID` and `IP_CONNECTION_EMAIL`.
+
+    <Warning>
+      Paradox SWAN connections go through the cloud. The PAI maintainers do not recommend this method. See the security advisory linked in the README.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="MQTT not receiving messages">
+    **Verify MQTT is enabled**
+
+    MQTT is disabled by default. Check your config:
+
+    ```python pai.conf
+    MQTT_ENABLE = True
+    ```
+
+    **Check host and port**
+
+    ```python pai.conf
+    MQTT_HOST = '127.0.0.1'  # Hostname or IP of your broker
+    MQTT_PORT = 1883          # Default MQTT port
+    ```
+
+    **Verify the broker is running**
+
+    ```bash
+    # For Mosquitto
+    systemctl status mosquitto
+
+    # Test connectivity with mosquitto_sub
+    mosquitto_sub -h 127.0.0.1 -t 'paradox/#' -v
+    ```
+
+    **Authentication**
+
+    If your broker requires credentials, set them in the config:
+
+    ```python pai.conf
+    MQTT_USERNAME = 'myuser'
+    MQTT_PASSWORD = 'mypassword'
+    ```
+
+    Both default to `None` (no authentication).
+
+    **Verify the base topic**
+
+    PAI publishes to `paradox/#` by default (`MQTT_BASE_TOPIC = 'paradox'`). Subscribe to the wildcard to see all messages:
+
+    ```bash
+    mosquitto_sub -h 127.0.0.1 -t 'paradox/#' -v
+    ```
+  </Accordion>
+
+  <Accordion title="Events not triggering notifications">
+    **Check the interface is enabled**
+
+    Each interface is disabled by default:
+
+    ```python pai.conf
+    PUSHBULLET_ENABLE = True
+    PUSHOVER_ENABLE = True
+    SIGNAL_ENABLE = True
+    GSM_ENABLE = True
+    HOMEASSISTANT_NOTIFICATIONS_ENABLE = True
+    ```
+
+    **Review event filter settings**
+
+    The default tag filters for most interfaces are:
+
+    ```python pai.conf
+    PUSHBULLET_EVENT_FILTERS = [
+        'live,alarm,-restore',
+        'trouble,-clock',
+        'live,tamper',
+    ]
+    ```
+
+    If the event you expect does not carry all the tags in at least one filter entry, it will be silently dropped. Enable `LOGGING_DUMP_EVENTS = True` to log every event and its tags, then cross-check against your filter.
+
+    **Check MIN_EVENT_LEVEL**
+
+    Events below the configured level are dropped before the filters run:
+
+    ```python pai.conf
+    PUSHBULLET_MIN_EVENT_LEVEL = 'INFO'
+    GSM_MIN_EVENT_LEVEL = 'CRITICAL'  # GSM default is CRITICAL
+    ```
+
+    Lower the level temporarily to `DEBUG` to confirm events are reaching the interface.
+  </Accordion>
+
+  <Accordion title="Enable debug logging">
+    Set the console log level to `DEBUG` in your config:
+
+    ```python pai.conf
+    import logging
+    LOGGING_LEVEL_CONSOLE = logging.DEBUG
+    ```
+
+    For deeper diagnostics, enable one or more dump flags:
+
+    ```python pai.conf
+    LOGGING_DUMP_PACKETS  = True  # Raw bytes sent/received on the wire
+    LOGGING_DUMP_MESSAGES = True  # Decoded protocol messages
+    LOGGING_DUMP_STATUS   = True  # Panel status updates
+    LOGGING_DUMP_EVENTS   = True  # Full event details including tags
+    ```
+
+    <Warning>
+      Enabling all dump flags produces a large volume of log output and will slow PAI down. Use them only during active debugging and disable them once the issue is resolved.
+    </Warning>
+
+    To write logs to a file, set:
+
+    ```python pai.conf
+    LOGGING_FILE = '/var/log/pai/paradox.log'
+    LOGGING_LEVEL_FILE = logging.DEBUG
+    LOGGING_FILE_MAX_SIZE  = 10  # MB
+    LOGGING_FILE_MAX_FILES = 2   # Rotated copies to keep
+    ```
+  </Accordion>
+
+  <Accordion title="EVO panel not communicating after firmware upgrade">
+    EVO firmware version **7.50.000 and above** introduced serial communication encryption. PAI cannot decrypt this communication, so the serial connection stops working after upgrading to an affected firmware.
+
+    <Warning>
+      This firmware upgrade is **irreversible**. Do not upgrade EVO panels to firmware 7.50.000 or later if you rely on a serial connection with PAI.
+    </Warning>
+
+    **Options if you have already upgraded:**
+
+    - **Purchase a Paradox unlock code.** Paradox sells a code that re-enables the unencrypted serial port. Contact your Paradox dealer.
+    - **Use an IP150 module.** The IP150 connection is not affected by serial encryption. Switch `CONNECTION_TYPE` to `IP` and configure the module.
+
+    ```python pai.conf
+    CONNECTION_TYPE = 'IP'
+    IP_CONNECTION_HOST = '192.168.1.100'
+    IP_CONNECTION_PORT = 10000
+    IP_CONNECTION_PASSWORD = 'paradox'
+    ```
+  </Accordion>
+</AccordionGroup>

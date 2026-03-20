@@ -1,0 +1,112 @@
+---
+title: "pai-service"
+description: "Main PAI service command that connects to the alarm panel and runs all integrations"
+---
+
+`pai-service` is the main process for PAI. It loads configuration, connects to the Paradox panel, and runs all enabled interfaces (MQTT, Pushbullet, Signal, GSM, Home Assistant notifications, IP interface).
+
+## Usage
+
+```bash
+pai-service [OPTIONS]
+```
+
+## Options
+
+<ParamField path="-c, --config" type="string" default="None">
+  Path to an alternative configuration file. Supports `.conf` / `.py`, `.json`, and `.yaml` formats.
+
+  When not specified, PAI searches for a config file in these locations in order:
+  1. Current working directory
+  2. `~/.local/etc`
+  3. `/etc/pai`
+  4. `/usr/local/etc/pai`
+
+  Filenames searched: `pai.conf`, `pai.json`, `pai.yaml`.
+
+  You can also set the config path with the `PAI_CONFIG_FILE` environment variable.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+
+```bash default config
+pai-service
+```
+
+```bash custom config file
+pai-service --config /etc/pai/my-panel.conf
+```
+
+```bash short flag
+pai-service -c /home/user/pai.yaml
+```
+
+```bash environment variable
+PAI_CONFIG_FILE=/etc/pai/pai.conf pai-service
+```
+
+</CodeGroup>
+
+## Startup sequence
+
+<Steps>
+  <Step title="Load configuration">
+    PAI reads the configuration file (or searches default locations) and applies any `PAI_*` environment variable overrides on top.
+  </Step>
+  <Step title="Configure logging">
+    Console and file logging are configured according to `LOGGING_LEVEL_CONSOLE`, `LOGGING_LEVEL_FILE`, and `LOGGING_FILE`.
+  </Step>
+  <Step title="Register encodings">
+    Additional Paradox label encodings (e.g. `paradox-en`) are registered with Python's codec system.
+  </Step>
+  <Step title="Connect to panel">
+    PAI establishes a connection to the alarm panel using the configured `CONNECTION_TYPE` (Serial or IP).
+  </Step>
+  <Step title="Start interfaces">
+    All enabled interfaces start and begin publishing state and event data.
+  </Step>
+</Steps>
+
+## Signals
+
+| Signal | Behavior |
+|---|---|
+| `SIGINT` (Ctrl+C) | Graceful shutdown — disconnects from the panel and stops all interfaces cleanly |
+| `SIGTERM` | Graceful shutdown — same behavior as `SIGINT` |
+
+## Environment variables
+
+Any configuration key can be overridden via an environment variable named `PAI_<KEY>`. For example:
+
+```bash
+PAI_MQTT_ENABLE=True PAI_MQTT_HOST=192.168.1.10 pai-service
+```
+
+Integer values are automatically converted. Other types follow the same validation rules as the config file.
+
+<Warning>
+Environment variable overrides are applied after the config file is read. They take precedence over file values.
+</Warning>
+
+## Running as a system service
+
+```ini /etc/systemd/system/pai.service
+[Unit]
+Description=Paradox Alarm Interface
+After=network.target
+
+[Service]
+ExecStart=pai-service -c /etc/pai/pai.conf
+Restart=on-failure
+User=pai
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl enable pai
+sudo systemctl start pai
+```

@@ -38,7 +38,7 @@ Beyond MQTT, PAI can push real-time alarm notifications directly to your phone o
     SP7000 and other Spectra series panels
   </Card>
   <Card title="EVO" icon="shield-check" href="/hardware/evo">
-    EVO48, EVO192, and other EVO series panels (firmware below 7.50.000)
+    EVO48, EVO192, and other EVO series panels (firmware &lt; 7.50.000)
   </Card>
 </CardGroup>
 
@@ -64,6 +64,17 @@ Beyond MQTT, PAI can push real-time alarm notifications directly to your phone o
     SMS alerts via an attached GSM modem
   </Card>
 </CardGroup>
+
+## Connection options
+
+PAI supports two ways to connect to your Paradox panel:
+
+- **Serial** — Direct connection via the panel's built-in TTL 5V serial port or a USB RS-232 adapter. Works with all supported panels.
+- **IP150 module** — Network connection via Paradox's IP150 module, either directly (firmware &lt; 4.0 or &ge; 4.40.004) or through the SWAN cloud service (firmware 4.0+).
+
+<Info>
+  Serial over TCP is also supported — an ESP32 or Arduino connected to the panel's serial port can act as a network proxy.
+</Info>
 
 ## Key capabilities
 

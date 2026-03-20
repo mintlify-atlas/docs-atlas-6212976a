@@ -1,0 +1,251 @@
+---
+title: "Home Assistant Integration"
+description: "Integrate PAI with Home Assistant using MQTT auto-discovery and push notifications"
+---
+
+PAI integrates with Home Assistant in two independent ways:
+
+<CardGroup cols={2}>
+  <Card title="MQTT auto-discovery" icon="satellite-dish">
+    PAI publishes Home Assistant MQTT discovery payloads so entities appear in HA automatically — no manual YAML configuration required.
+  </Card>
+  <Card title="Push notifications" icon="bell">
+    PAI sends panel events directly to a Home Assistant notification service via the HA REST API.
+  </Card>
+</CardGroup>
+
+<Note>
+Both features require an MQTT broker. [Mosquitto](https://mosquitto.org/) is recommended. The MQTT integration must be enabled (`MQTT_ENABLE = True`) before enabling auto-discovery.
+</Note>
+
+## MQTT auto-discovery
+
+Home Assistant's [MQTT discovery](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery) protocol lets PAI register entities without any manual HA configuration. PAI publishes entity configuration payloads to the discovery prefix topic on startup.
+
+### Enabling auto-discovery
+
+```python pai.conf
+MQTT_ENABLE = True
+MQTT_HOMEASSISTANT_AUTODISCOVERY_ENABLE = True
+MQTT_HOST = '192.168.1.10'
+```
+
+### Discovery settings
+
+<AccordionGroup>
+  <Accordion title="Discovery prefix">
+    `MQTT_HOMEASSISTANT_DISCOVERY_PREFIX` sets the root topic used for all discovery payloads. It must match the discovery prefix configured in your HA MQTT integration.
+
+    | Config key | Default |
+    |---|---|
+    | `MQTT_HOMEASSISTANT_DISCOVERY_PREFIX` | `'homeassistant'` |
+
+    Discovery topics follow the pattern:
+    ```
+    {prefix}/{entity-type}/{serial_number}/{entity_id}/config
+    ```
+  </Accordion>
+
+  <Accordion title="Alarm code">
+    Set `MQTT_HOMEASSISTANT_CODE` to require a numeric code in the Home Assistant alarm control panel card before arming or disarming.
+
+    ```python pai.conf
+    MQTT_HOMEASSISTANT_CODE = '1234'
+    ```
+
+    When this is set to `None` (default), HA sets `code_arm_required`, `code_disarm_required`, and `code_trigger_required` all to `False` — no code prompt is shown.
+  </Accordion>
+
+  <Accordion title="Entity name prefix">
+    `MQTT_HOMEASSISTANT_ENTITY_PREFIX` prepends a string to all entity names. The placeholders `{serial_number}` and `{model}` are replaced with values read from the detected panel.
+
+    ```python pai.conf
+    # Example: 'Paradox 12345678 Partition Home'
+    MQTT_HOMEASSISTANT_ENTITY_PREFIX = 'Paradox {serial_number} '
+    ```
+
+    Default is `''` (no prefix).
+  </Accordion>
+
+  <Accordion title="Device name prefix">
+    `MQTT_PREFIX_DEVICE_NAME` adds the device serial number as a prefix to entity names in the HA device registry (e.g., `Paradox 12345678`).
+
+    | Config key | Default |
+    |---|---|
+    | `MQTT_PREFIX_DEVICE_NAME` | `False` |
+  </Accordion>
+</AccordionGroup>
+
+### Entities created automatically
+
+PAI creates the following entities in Home Assistant:
+
+<AccordionGroup>
+  <Accordion title="alarm_control_panel — one per partition">
+    An `alarm_control_panel` entity is created for each partition detected by PAI. It maps HA actions to PAI commands:
+
+    | HA action | MQTT payload sent |
+    |---|---|
+    | Arm away | `arm` |
+    | Arm home | `arm_stay` |
+    | Arm night | `arm_sleep` |
+    | Disarm | `disarm` |
+
+    The state topic is `paradox/states/partitions/{name}/current_state`.
+
+    Additional partition property binary sensors are published for properties listed in `HOMEASSISTANT_PUBLISH_PARTITION_PROPERTIES`:
+
+    ```python pai.conf
+    HOMEASSISTANT_PUBLISH_PARTITION_PROPERTIES = [
+        'target_state',
+        'current_state',
+    ]
+    ```
+  </Accordion>
+
+  <Accordion title="binary_sensor — one per zone property">
+    A `binary_sensor` entity is published for each property listed in `HOMEASSISTANT_PUBLISH_ZONE_PROPERTIES` for every zone:
+
+    ```python pai.conf
+    HOMEASSISTANT_PUBLISH_ZONE_PROPERTIES = [
+        'open',
+        'tamper',
+    ]
+    ```
+
+    Zone sensors with property `open` are given `device_class: motion`. Other properties get no device class.
+
+    When `bypassed` is included in the list, a `switch` entity is created instead of a binary sensor, with payloads `bypass` (on) and `clear_bypass` (off).
+
+    When `signal_strength` is included, a numeric `sensor` entity is created.
+  </Accordion>
+
+  <Accordion title="switch — one per PGM output">
+    A `switch` entity is created for each PGM/output detected. The state topic tracks the `on` property. Payloads are `on` and `off`.
+  </Accordion>
+
+  <Accordion title="sensor — PAI status and system properties">
+    A `sensor` entity named `PAI Status` is always created. Its state topic is `paradox/interface/pai_status` and carries values such as `online`, `paused`, `offline`, `initializing`, or `error`.
+
+    System property sensors are also created for each detected system status key. Power-related sensors include a `unit_of_measurement` of `V`.
+
+    System trouble keys produce `binary_sensor` entities instead.
+  </Accordion>
+</AccordionGroup>
+
+### Control topic
+
+HA's alarm control panel sends commands to:
+
+```
+{MQTT_BASE_TOPIC}/hass_control/{element-type}/{name}
+```
+
+The `hass_control` segment is configured by `MQTT_HOMEASSISTANT_CONTROL_TOPIC` (default: `'hass_control'`).
+
+### Example auto-discovery configuration
+
+```python pai.conf
+# Connection
+CONNECTION_TYPE = 'IP'
+IP_CONNECTION_HOST = '192.168.1.100'
+IP_CONNECTION_PORT = 10000
+
+# MQTT broker
+MQTT_ENABLE = True
+MQTT_HOST = '192.168.1.10'
+MQTT_PORT = 1883
+MQTT_USERNAME = 'pai'
+MQTT_PASSWORD = 'secret'
+
+# Home Assistant auto-discovery
+MQTT_HOMEASSISTANT_AUTODISCOVERY_ENABLE = True
+MQTT_HOMEASSISTANT_DISCOVERY_PREFIX = 'homeassistant'
+MQTT_HOMEASSISTANT_CODE = None  # Set to a string to require a code
+MQTT_HOMEASSISTANT_ENTITY_PREFIX = ''  # e.g. 'Paradox {serial_number} '
+
+# Which properties to expose as entities
+HOMEASSISTANT_PUBLISH_PARTITION_PROPERTIES = ['target_state', 'current_state']
+HOMEASSISTANT_PUBLISH_ZONE_PROPERTIES = ['open', 'tamper']
+```
+
+---
+
+## Home Assistant notifications
+
+PAI can send panel events to a Home Assistant notification service by calling the HA REST API directly. This works with the HA Supervisor (Hass.io add-on environment) or with a Long-Lived Access Token.
+
+### Enabling notifications
+
+```python pai.conf
+HOMEASSISTANT_NOTIFICATIONS_ENABLE = True
+HOMEASSISTANT_NOTIFICATIONS_API_TOKEN = 'your-long-lived-token'
+```
+
+<Info>
+When running PAI as a Hass.io add-on, the Supervisor token is used automatically and `HOMEASSISTANT_NOTIFICATIONS_API_TOKEN` can be left empty. The API URL defaults to `http://supervisor/core/api/services/:domain/:service`.
+</Info>
+
+### Notification settings
+
+| Config key | Default | Description |
+|---|---|---|
+| `HOMEASSISTANT_NOTIFICATIONS_API_URL` | `'http://supervisor/core/api/services/:domain/:service'` | HA REST API endpoint |
+| `HOMEASSISTANT_NOTIFICATIONS_API_TOKEN` | `''` | Long-Lived Access Token (not required under Supervisor) |
+| `HOMEASSISTANT_NOTIFICATIONS_NOTIFIER_NAME` | `'notify'` | HA notification service name |
+| `HOMEASSISTANT_NOTIFICATIONS_LOVELACE_URI` | `''` | URI opened when the notification is tapped |
+| `HOMEASSISTANT_NOTIFICATIONS_MIN_EVENT_LEVEL` | `'INFO'` | Minimum event level to notify: `DEBUG`, `INFO`, `WARN`, `ERROR`, `CRITICAL` |
+
+### Event filtering
+
+You can control which events trigger notifications using one of two approaches. The two approaches cannot be used together.
+
+<Tabs>
+  <Tab title="Tag-based filters (EVENT_FILTERS)">
+    `HOMEASSISTANT_NOTIFICATIONS_EVENT_FILTERS` accepts a list of comma-separated tag strings. Each string is an AND condition; multiple strings form an OR. Prefix a tag with `-` to exclude events carrying that tag.
+
+    ```python pai.conf
+    HOMEASSISTANT_NOTIFICATIONS_EVENT_FILTERS = [
+        'live,alarm,-restore',  # live alarms that are not restores
+        'trouble,-clock',       # trouble events except clock trouble
+        'live,tamper',          # live tamper events
+    ]
+    ```
+  </Tab>
+  <Tab title="Regexp-based filters (ALLOW / IGNORE)">
+    `HOMEASSISTANT_NOTIFICATIONS_ALLOW_EVENTS` and `HOMEASSISTANT_NOTIFICATIONS_IGNORE_EVENTS` accept lists of tuples or regexp strings matching the pattern `type,label,property=value`.
+
+    ```python pai.conf
+    # Allow all events ...
+    HOMEASSISTANT_NOTIFICATIONS_ALLOW_EVENTS = [r'.*']
+
+    # ... except these
+    HOMEASSISTANT_NOTIFICATIONS_IGNORE_EVENTS = [
+        r'zone,[\w]+,no_delay=True',
+        r'zone,[\w]+,exit_delay=.*',
+    ]
+    ```
+
+    <Warning>
+    Do not set both `HOMEASSISTANT_NOTIFICATIONS_EVENT_FILTERS` and `HOMEASSISTANT_NOTIFICATIONS_ALLOW_EVENTS` at the same time.
+    </Warning>
+  </Tab>
+</Tabs>
+
+### Example notification configuration
+
+```python pai.conf
+# Home Assistant notifications
+HOMEASSISTANT_NOTIFICATIONS_ENABLE = True
+HOMEASSISTANT_NOTIFICATIONS_API_URL = 'http://192.168.1.5:8123/api/services/:domain/:service'
+HOMEASSISTANT_NOTIFICATIONS_API_TOKEN = 'eyJ0eXAiOiJKV1Q...'
+HOMEASSISTANT_NOTIFICATIONS_NOTIFIER_NAME = 'notify'
+HOMEASSISTANT_NOTIFICATIONS_LOVELACE_URI = '/lovelace/security'
+HOMEASSISTANT_NOTIFICATIONS_MIN_EVENT_LEVEL = 'INFO'
+
+HOMEASSISTANT_NOTIFICATIONS_EVENT_FILTERS = [
+    'live,alarm,-restore',
+    'trouble,-clock',
+    'live,tamper',
+]
+```

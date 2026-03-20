@@ -1,0 +1,258 @@
+---
+title: "MQTT Integration"
+description: "Publish Paradox panel state and events to MQTT, and control the panel via MQTT commands"
+---
+
+PAI's MQTT interface publishes all panel state and live events to an MQTT broker and subscribes to control topics so you can arm, disarm, and trigger outputs from any MQTT client.
+
+## Enabling MQTT
+
+Set `MQTT_ENABLE = True` in your `pai.conf` and point PAI at your broker:
+
+```python pai.conf
+MQTT_ENABLE = True
+MQTT_HOST = '192.168.1.10'
+MQTT_PORT = 1883
+MQTT_USERNAME = 'pai'
+MQTT_PASSWORD = 'secret'
+```
+
+<Note>
+The MQTT interface is disabled by default. You must set `MQTT_ENABLE = True` for any of the MQTT settings to take effect.
+</Note>
+
+## Connection settings
+
+<AccordionGroup>
+  <Accordion title="Authentication">
+    | Setting | Default | Description |
+    |---|---|---|
+    | `MQTT_USERNAME` | `None` | MQTT username for broker authentication |
+    | `MQTT_PASSWORD` | `None` | MQTT password for broker authentication |
+    | `MQTT_KEEPALIVE` | `60` | Keep-alive interval in seconds (1–3600) |
+  </Accordion>
+
+  <Accordion title="TLS / SSL">
+    Set `MQTT_TLS_CERT_PATH` to the path of your CA certificate to enable TLS. When TLS is active, `MQTT_PORT` becomes the TLS port.
+
+    ```python pai.conf
+    MQTT_TLS_CERT_PATH = '/etc/pai/certs/ca.pem'
+    MQTT_PORT = 8883
+    ```
+
+    PAI uses `ssl.PROTOCOL_TLSv1_2` with `ssl.CERT_REQUIRED` and does not allow insecure connections.
+  </Accordion>
+
+  <Accordion title="Protocol and transport">
+    | Setting | Default | Allowed values |
+    |---|---|---|
+    | `MQTT_PROTOCOL` | `'3.1.1'` | `'3.1'`, `'3.1.1'`, `'5'` |
+    | `MQTT_TRANSPORT` | `'tcp'` | `'tcp'`, `'websockets'` |
+    | `MQTT_BIND_ADDRESS` | `''` | Client bind address (empty = auto) |
+    | `MQTT_BIND_PORT` | `0` | Client bind port (0 = auto) |
+  </Accordion>
+
+  <Accordion title="Publish behaviour">
+    | Setting | Default | Description |
+    |---|---|---|
+    | `MQTT_QOS` | `0` | QoS level: 0 = fire-and-forget, 1 = at least once, 2 = exactly once |
+    | `MQTT_RETAIN` | `True` | Publish messages with the retain flag |
+    | `MQTT_USE_NUMERIC_STATES` | `False` | Publish `0`/`1` instead of `False`/`True` |
+  </Accordion>
+</AccordionGroup>
+
+## Topic structure
+
+All topics are rooted under `MQTT_BASE_TOPIC` (default: `paradox`). State topics follow the pattern:
+
+```
+{base}/{element-type}/{name}/states/{property}
+```
+
+The intermediate `states` segment comes from `MQTT_STATES_TOPIC` (default: `states`).
+
+<Note>
+In the source code, the state topic prefix is built as `{MQTT_BASE_TOPIC}/{MQTT_STATES_TOPIC}/{element-topic}`. Element names are sanitized before use as topic segments.
+</Note>
+
+### Element topics
+
+| Element | Topic segment config key | Default segment | Full example |
+|---|---|---|---|
+| Zones | `MQTT_ZONE_TOPIC` | `zones` | `paradox/states/zones/front_door/open` |
+| Partitions | `MQTT_PARTITION_TOPIC` | `partitions` | `paradox/states/partitions/home/arm` |
+| Outputs / PGMs | `MQTT_OUTPUT_TOPIC` | `outputs` | `paradox/states/outputs/siren/on` |
+| Buses | `MQTT_BUS_TOPIC` | `buses` | `paradox/states/buses/bus_1/tamper` |
+| Bus modules | `MQTT_MODULE_TOPIC` | `bus-module` | `paradox/states/bus-module/module_1/tamper` |
+| Doors | `MQTT_DOOR_TOPIC` | `doors` | `paradox/states/doors/main_entry/open` |
+| Keypads | `MQTT_KEYPAD_TOPIC` | `keypads` | `paradox/states/keypads/keypad_1/trouble` |
+| Repeaters | `MQTT_REPEATER_TOPIC` | `repeaters` | `paradox/states/repeaters/repeater_1/trouble` |
+| System | `MQTT_SYSTEM_TOPIC` | `system` | `paradox/states/system/power/dc` |
+| Users | `MQTT_USER_TOPIC` | `users` | `paradox/states/users/user_1/login` |
+
+### Special topics
+
+| Purpose | Config keys | Full default topic |
+|---|---|---|
+| Raw JSON events | `MQTT_EVENTS_TOPIC`, `MQTT_RAW_TOPIC` | `paradox/events/raw` |
+| Interface / PAI status | `MQTT_INTERFACE_TOPIC` | `paradox/interface/pai_status` |
+| Availability | `MQTT_INTERFACE_TOPIC` | `paradox/interface/availability` |
+| Challenge (HMAC auth) | `MQTT_STATES_TOPIC`, `MQTT_CHALLENGE_TOPIC` | `paradox/states/challenge` |
+| Command status | `MQTT_INTERFACE_TOPIC`, `MQTT_COMMAND_STATUS_TOPIC` | `paradox/interface/command_status` |
+
+The `pai_status` topic carries one of: `initializing`, `connected`, `online`, `paused`, `stopped`, `error`, or `offline`.
+
+### Topic config reference
+
+| Config key | Default |
+|---|---|
+| `MQTT_BASE_TOPIC` | `'paradox'` |
+| `MQTT_STATES_TOPIC` | `'states'` |
+| `MQTT_EVENTS_TOPIC` | `'events'` |
+| `MQTT_RAW_TOPIC` | `'raw'` |
+| `MQTT_CONTROL_TOPIC` | `'control'` |
+| `MQTT_DEFINITION_TOPIC` | `'definitions'` |
+| `MQTT_NOTIFICATIONS_TOPIC` | `'notifications'` |
+| `MQTT_SEND_PANIC_TOPIC` | `'panic'` |
+| `MQTT_INTERFACE_TOPIC` | `'interface'` |
+| `MQTT_CHALLENGE_TOPIC` | `'challenge'` |
+| `MQTT_COMMAND_STATUS_TOPIC` | `'command_status'` |
+
+## Controlling the panel via MQTT
+
+Publish to the control topic to send commands:
+
+```
+{base}/control/{element-type}/{name}  payload: <command>
+```
+
+Retained messages are ignored — PAI logs a warning and discards them.
+
+### Partition commands
+
+Publish to `paradox/control/partitions/{name}`:
+
+| Command | Action |
+|---|---|
+| `arm` | Arm away |
+| `disarm` | Disarm |
+| `arm_stay` | Arm stay (home) |
+| `arm_sleep` | Arm sleep (night) |
+
+### Output / PGM commands
+
+Publish to `paradox/control/outputs/{name}`:
+
+| Command | Action |
+|---|---|
+| `on` | Activate output |
+| `off` | Deactivate output |
+| `pulse` | Pulse output (duration set by `OUTPUT_PULSE_DURATION`, default 1 s) |
+
+### Panic command
+
+Publish to `paradox/panic/{type}/{partition}/{userid}` to trigger a panic. `{type}` is the panic type code accepted by the panel.
+
+Customise the topic prefix with `MQTT_SEND_PANIC_TOPIC` (default: `'panic'`).
+
+### Command aliases
+
+`MQTT_COMMAND_ALIAS` maps incoming payloads to internal commands before execution. The default mapping provides homebridge compatibility:
+
+```python pai.conf
+MQTT_COMMAND_ALIAS = {
+    'armed_home': 'arm_stay',
+    'armed_night': 'arm_sleep',
+    'armed_away': 'arm',
+    'disarmed': 'disarm',
+}
+```
+
+### Code-protected toggle commands
+
+`MQTT_TOGGLE_CODES` maps code strings to user labels. When a `code_toggle-{code}` command is received, PAI checks the current arm state and toggles between arm and disarm:
+
+```python pai.conf
+MQTT_TOGGLE_CODES = {
+    '1234': 'John',
+    '5678': 'Jane',
+}
+```
+
+Send the payload `code_toggle-1234` to a partition control topic to use it.
+
+### HMAC command authorisation
+
+Set `MQTT_CHALLENGE_SECRET` to require HMAC-SHA1 challenge–response authentication for all commands. PAI publishes a fresh random challenge to `paradox/states/challenge` after every command attempt.
+
+```python pai.conf
+MQTT_CHALLENGE_SECRET = 'my-shared-secret'
+MQTT_CHALLENGE_ROUNDS = 1000  # PBKDF iteration count, default 1000
+```
+
+Command payload format when challenge auth is active:
+
+```
+{command} {response}
+```
+
+Or, when `MQTT_CHALLENGE_SECRET` is a dict keyed by username:
+
+```
+{command} {username} {response}
+```
+
+<Warning>
+Do not set `MQTT_CHALLENGE_SECRET` if you do not have a client that implements the HMAC-SHA1 challenge protocol — all commands will be rejected.
+</Warning>
+
+### Publishing command status
+
+Enable `MQTT_PUBLISH_COMMAND_STATUS = True` to have PAI publish accepted/refused messages for each command to `paradox/interface/command_status` (QoS 2, retained).
+
+## Republishing state
+
+PAI republishes all cached state to MQTT periodically so that new subscribers receive full state without waiting for a panel change.
+
+| Config key | Default | Min |
+|---|---|---|
+| `MQTT_REPUBLISH_INTERVAL` | `43200` (12 hours) | `60` |
+
+Value is in seconds. Any topic that has not been published within the interval is re-sent.
+
+## Publishing raw events
+
+When `MQTT_PUBLISH_RAW_EVENTS = True` (default), every live panel event is serialised to JSON and published to `paradox/events/raw` at QoS 0.
+
+Set `MQTT_PUBLISH_DEFINITIONS = False` (default) to suppress publishing zone/partition/user definitions to `paradox/definitions/...`. Enable it only if a downstream consumer needs static entity metadata.
+
+## MQTT Dash integration
+
+PAI can publish a dashboard configuration for the [MQTT Dash](https://play.google.com/store/apps/details?id=net.routix.mqttdash) Android app.
+
+| Config key | Default | Description |
+|---|---|---|
+| `MQTT_DASH_PUBLISH` | `False` | Enable publishing of the Dash config |
+| `MQTT_DASH_TOPIC` | `'metrics/exchange/pai'` | Topic to publish the Dash config to |
+| `MQTT_DASH_TEMPLATE` | `'/etc/pai/mqtt_dash.txt'` | Path to the Dash template file |
+
+The template file may contain `__PARTITION{N}__` placeholders that are replaced with partition labels at publish time. Publishing only occurs when at least two partitions are detected.
+
+## Minimal configuration example
+
+```python pai.conf
+# Connection
+CONNECTION_TYPE = 'IP'
+IP_CONNECTION_HOST = '192.168.1.100'
+IP_CONNECTION_PORT = 10000
+IP_CONNECTION_PASSWORD = 'paradox'
+
+# MQTT
+MQTT_ENABLE = True
+MQTT_HOST = '192.168.1.10'
+MQTT_PORT = 1883
+MQTT_USERNAME = 'pai'
+MQTT_PASSWORD = 'secret'
+MQTT_RETAIN = True
+MQTT_QOS = 0
+```

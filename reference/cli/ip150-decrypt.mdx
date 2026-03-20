@@ -1,0 +1,110 @@
+---
+title: "ip150-connection-decrypt"
+description: "Decrypt captured IP150 connection traffic for debugging"
+---
+
+`ip150-connection-decrypt` parses and decrypts a YAML capture of IP150 TCP traffic produced by Wireshark. It decrypts the IP150 protocol layer, decodes the encapsulated Paradox serial messages, and prints a human-readable trace of the full conversation between the IP150 module and the alarm panel.
+
+## Usage
+
+```bash
+ip150-connection-decrypt FILE PASSWORD [-n PACKETS]
+```
+
+## Arguments
+
+<ParamField path="file" type="file" required>
+  YAML file containing the captured TCP stream. To create this file from Wireshark:
+
+  1. Right-click the first IP150 packet in the capture.
+  2. Select **Follow → TCP Stream**.
+  3. In the "Show and save data as" dropdown, choose **YAML**.
+  4. Copy the contents into a file.
+</ParamField>
+
+<ParamField path="password" type="string" default="paradox">
+  IP module password used to decrypt the session. This is the same password configured in `IP_CONNECTION_PASSWORD`. The factory default is `paradox`.
+</ParamField>
+
+## Options
+
+<ParamField path="-n, --packets" type="int">
+  Maximum number of packets to decrypt and print. Useful for inspecting just the connection handshake without processing an entire long capture.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+
+```bash decrypt full capture
+ip150-connection-decrypt capture.yaml paradox
+```
+
+```bash custom password
+ip150-connection-decrypt capture.yaml mysecretpassword
+```
+
+```bash first 20 packets only
+ip150-connection-decrypt capture.yaml paradox -n 20
+```
+
+</CodeGroup>
+
+## Capturing traffic with Wireshark
+
+<Steps>
+  <Step title="Start a capture">
+    Open Wireshark and start capturing on the network interface that carries traffic between your computer and the IP150 module.
+  </Step>
+  <Step title="Filter to the IP150 stream">
+    Apply a display filter such as `tcp.port == 10000` (replace with your `IP_CONNECTION_PORT`) to isolate the IP150 traffic.
+  </Step>
+  <Step title="Follow the TCP stream">
+    Right-click any packet in the stream and choose **Follow → TCP Stream**.
+  </Step>
+  <Step title="Export as YAML">
+    In the TCP Stream dialog, set "Show and save data as" to **YAML** and copy the contents to a `.yaml` file.
+  </Step>
+  <Step title="Decrypt">
+    Run `ip150-connection-decrypt` with the exported file and your IP module password.
+  </Step>
+</Steps>
+
+## Output format
+
+The tool prints colour-coded output to the terminal:
+
+| Colour | Meaning |
+|---|---|
+| Blue | PC → IP150 request packet |
+| Green | IP150 → PC response packet |
+| White/highlighted | Decoded payload (parsed Paradox message or IP header) |
+| Red | Parse errors or packets with no registered parser |
+
+For each packet the tool prints:
+- Raw header bytes (hex)
+- Encrypted payload bytes (hex)
+- Decrypted payload bytes (hex)
+- Decoded payload structure (if a parser is available)
+- Session password when the connection handshake completes
+
+## When to use this tool
+
+<AccordionGroup>
+  <Accordion title="Debugging IP150 connection failures">
+    If PAI fails to connect or authenticate with the IP150 module, capture the TCP stream and decrypt it to see exactly where the handshake fails and what error code the module returns.
+  </Accordion>
+  <Accordion title="Investigating unexpected panel behaviour">
+    Decrypt a capture taken during a specific event (alarm, arm/disarm) to see the raw serial messages exchanged and verify PAI is parsing them correctly.
+  </Accordion>
+  <Accordion title="Developing parser support for new messages">
+    When a new Paradox firmware version introduces unknown message types, decrypted captures provide the raw bytes needed to write new `construct` parsers.
+  </Accordion>
+  <Accordion title="Verifying a wrong decryption password">
+    The tool checks that the initial handshake payload matches the supplied password and prints `Wrong decryption password` if it does not, confirming a misconfiguration.
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+This tool requires the `pyyaml` package. Install it with `pip install pyyaml` or use the `YAML` extra: `pip install paradox-alarm-interface[YAML]`.
+</Warning>

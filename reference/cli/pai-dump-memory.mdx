@@ -1,0 +1,88 @@
+---
+title: "pai-dump-memory"
+description: "Dump Paradox panel memory for debugging and analysis"
+---
+
+`pai-dump-memory` connects to the alarm panel using your PAI configuration and dumps the contents of either RAM or EEPROM to a file or stdout. It is a debugging tool for capturing raw panel state and configuration data.
+
+## Usage
+
+```bash
+pai-dump-memory (-r | -e) [-f FILE] [-c CONFIG]
+```
+
+One of `-r` or `-e` is **required**.
+
+## Options
+
+<ParamField path="-r, --ram" type="flag">
+  Dump the panel's RAM. Mutually exclusive with `--eeprom`.
+</ParamField>
+
+<ParamField path="-e, --eeprom" type="flag">
+  Dump the panel's EEPROM. Mutually exclusive with `--ram`.
+</ParamField>
+
+<ParamField path="-f, --file" type="file" default="stdout">
+  Output file path to write the binary dump to. Defaults to stdout when not specified. The file is opened in binary write mode.
+</ParamField>
+
+<ParamField path="-c, --config" type="string" default="None">
+  Path to an alternative PAI configuration file. When not specified, PAI searches the default locations (`pai.conf`, `pai.json`, `pai.yaml` in the current directory, `~/.local/etc`, `/etc/pai`, `/usr/local/etc/pai`).
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+
+```bash dump RAM to stdout
+pai-dump-memory --ram
+```
+
+```bash dump EEPROM to a file
+pai-dump-memory --eeprom --file /tmp/panel-eeprom.bin
+```
+
+```bash dump RAM with a specific config
+pai-dump-memory -r -c /etc/pai/pai.conf -f /tmp/panel-ram.bin
+```
+
+```bash pipe RAM dump to hexdump
+pai-dump-memory -r | hexdump -C | less
+```
+
+</CodeGroup>
+
+## When to use this tool
+
+<AccordionGroup>
+  <Accordion title="Capturing panel state for bug reports">
+    When reporting a bug in PAI's state parsing or event handling, attach a RAM dump so maintainers can reproduce the exact panel state you observed.
+  </Accordion>
+  <Accordion title="Verifying panel configuration">
+    EEPROM contains panel programming (zone names, partition configuration, user codes, etc.). Dump the EEPROM to verify what is actually stored on the panel.
+  </Accordion>
+  <Accordion title="Debugging label decoding issues">
+    If zone or partition names appear garbled, a RAM dump combined with `LOGGING_DUMP_PACKETS = True` helps identify the raw bytes and the encoding in use.
+  </Accordion>
+  <Accordion title="Developing new panel support">
+    When adding support for a new Paradox panel model, EEPROM and RAM dumps provide the raw data needed to write and validate new parsers.
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+This tool connects to your live panel. Ensure `pai-service` is not running at the same time, as simultaneous connections to the panel may cause communication errors.
+</Warning>
+
+## Output format
+
+The output is raw binary data. Use standard tools to inspect it:
+
+```bash
+# Hex view
+pai-dump-memory -r | hexdump -C
+
+# Save and view with xxd
+pai-dump-memory -e -f /tmp/eeprom.bin
+xxd /tmp/eeprom.bin | less
+```

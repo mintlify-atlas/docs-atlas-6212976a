@@ -1,0 +1,81 @@
+---
+title: 'Supported Hardware'
+description: 'Paradox panel families supported by PAI: Magellan, Spectra, and EVO'
+---
+
+PAI connects to Paradox alarm panels across three product families: Magellan (MG), Spectra (SP), and EVO. All panels expose a serial port (TTL 5V) that PAI uses to communicate, and the IP150 module can be used as an alternative connection method for all families.
+
+Support for Magellan, Spectra, and EVO panels is very stable. If you find a bug, please report it.
+
+## Panel families
+
+<CardGroup cols={3}>
+  <Card title="EVO" icon="shield" href="/hardware/evo">
+    Digiplex EVO series. Supports up to 192 zones, 8 partitions, access control doors, and up to 999 users. Requires firmware below 7.50.000 for serial connections.
+  </Card>
+  <Card title="Spectra" icon="shield-check" href="/hardware/spectra-magellan">
+    SP series panels including SP4000, SP5500, SP550+, SP6000, SP6000+, SP65, SP7000, and SP7000+. Tested with SP7000.
+  </Card>
+  <Card title="Magellan" icon="wifi" href="/hardware/spectra-magellan">
+    MG series wireless panels including MG5000, MG5050, MG5050+, and MG5075. Tested with MG5050.
+  </Card>
+</CardGroup>
+
+## Connection methods
+
+PAI supports two connection methods for all panel families.
+
+<Tabs>
+  <Tab title="Serial">
+    All Paradox panels include a built-in serial port (TTL 5V). You can connect directly via:
+
+    - The panel's onboard serial port (requires a TTL level shifter)
+    - A USB RS232 TTL adapter (CP2102, PL2303, CH340, and others)
+    - Serial over TCP using an ESP32 or Arduino as a serial proxy
+
+    | Panel family | Default baud rate | Notes |
+    |---|---|---|
+    | Magellan (MG) | 9600 | |
+    | Spectra (SP) | 9600 | |
+    | EVO | 9600 | Use 38400 (default EVO setting) or 57600 for EVO panels |
+
+    <Warning>
+      Do not upgrade EVO firmware to version 7.50.000 or higher if you use a serial connection. See the [EVO panel page](/hardware/evo) for details.
+    </Warning>
+  </Tab>
+  <Tab title="IP150 Module">
+    The IP150 IP module is supported for all panel families. PAI supports two connection modes depending on the IP150 firmware version:
+
+    - **Direct connection** — IP module firmware `< 4.0` or `>= 4.40.004`
+    - **SITE ID (SWAN/cloud)** — IP module firmware `> 4.0`
+
+    <Note>
+      Paradox Cloud (SWAN) connections are not recommended. See the [security disclosure](https://github.com/CriticalSecurity/paradox) for details.
+    </Note>
+
+    **Required credentials:**
+    - **PC Password** — 4-digit `[0-9a-f]` password. Found in Babyware: right-click panel → Properties → PC Communication (BabyWare) → PC Password.
+    - **IP Module password** — Default is `paradox`.
+    - **SITE ID and registered email** — Required only for SWAN cloud connections.
+  </Tab>
+</Tabs>
+
+## Tested hardware
+
+### Panels
+
+- Paradox MG5050
+- Paradox SP7000
+- Paradox EVO panels
+
+### Host hardware
+
+PAI has been tested on the following single-board computers connected via built-in serial port (with a TTL level shifter) or USB RS232 TTL adapters:
+
+- OrangePi 2G-IOT
+- NanoPi NEO
+- Raspberry Pi 3
+
+<Info>
+  When using the panel's built-in TTL serial port, a level shifter is required to safely interface with 3.3V or 5V GPIO on host hardware.
+</Info>

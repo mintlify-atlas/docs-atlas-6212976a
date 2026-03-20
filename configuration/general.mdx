@@ -1,0 +1,135 @@
+---
+title: 'General settings'
+description: 'Core PAI configuration options for connection, logging, and panel behavior'
+---
+
+This page covers the core configuration keys for logging, panel communication, and runtime behavior. For restricting which resources PAI monitors, see [Resource limits](/configuration/limits).
+
+## Logging
+
+<ParamField path="LOGGING_LEVEL_CONSOLE" type="int" default="20">
+  Logging level for console output. Uses standard Python `logging` module levels: `DEBUG=10`, `INFO=20`, `WARNING=30`, `ERROR=40`, `CRITICAL=50`.
+</ParamField>
+
+<ParamField path="LOGGING_LEVEL_FILE" type="int" default="40">
+  Logging level for file output. Only used when `LOGGING_FILE` is set. Uses the same integer levels as `LOGGING_LEVEL_CONSOLE`.
+</ParamField>
+
+<ParamField path="LOGGING_FILE" type="string | null" default="null">
+  Path to the log file. Set to `None` to disable file logging. Example: `'/var/log/paradox.log'`.
+</ParamField>
+
+<ParamField path="LOGGING_FILE_MAX_SIZE" type="int" default="10">
+  Maximum size of the log file in megabytes before it is rotated. Valid range: `0` to `4294967295`.
+</ParamField>
+
+<ParamField path="LOGGING_FILE_MAX_FILES" type="int" default="2">
+  Number of rotated log files to keep. Valid range: `0` to `4294967295`.
+</ParamField>
+
+<ParamField path="LOGGING_DUMP_PACKETS" type="boolean" default="false">
+  Log raw packets to the log output. Useful for low-level debugging of serial or IP communication.
+</ParamField>
+
+<ParamField path="LOGGING_DUMP_MESSAGES" type="boolean" default="false">
+  Log decoded messages to the log output.
+</ParamField>
+
+<ParamField path="LOGGING_DUMP_STATUS" type="boolean" default="false">
+  Log panel status updates to the log output.
+</ParamField>
+
+<ParamField path="LOGGING_DUMP_EVENTS" type="boolean" default="false">
+  Log detailed event information to the log output.
+</ParamField>
+
+<Tip>
+  Enable `LOGGING_DUMP_PACKETS` and `LOGGING_DUMP_MESSAGES` together when diagnosing communication issues with a panel. Avoid leaving them enabled in production as they produce high log volume.
+</Tip>
+
+## Panel behavior
+
+<ParamField path="PASSWORD" type="string | int | bytes | null" default="null">
+  PC password for the alarm panel. Set to `None` if the panel has no PC password configured. The password is a 4-digit hex value found in Babyware under: right-click panel → Properties → PC Communication (Babyware) tab.
+
+  Example: `PASSWORD = '0000'`
+</ParamField>
+
+<ParamField path="KEEP_ALIVE_INTERVAL" type="int" default="10">
+  Interval in seconds between status update requests sent to the panel. Lowering this increases responsiveness but also communication overhead.
+</ParamField>
+
+<ParamField path="IO_TIMEOUT" type="float" default="0.5">
+  Timeout in seconds for individual I/O operations. Increase this if you experience timeout errors on slow or unreliable connections.
+</ParamField>
+
+<ParamField path="LABEL_ENCODING" type="string" default="'paradox-en'">
+  Character encoding used when decoding zone, partition, and user labels from the panel. Use `paradox-*` encodings for Paradox panels, or any standard Python codec name from the [Python codecs documentation](https://docs.python.org/3/library/codecs.html#standard-encodings).
+</ParamField>
+
+<ParamField path="LABEL_REFRESH_INTERVAL" type="int" default="900">
+  Interval in seconds between full label refreshes from the panel. Defaults to `15 * 60` (15 minutes). Valid range: `0` to `4294967295`.
+</ParamField>
+
+<ParamField path="OUTPUT_PULSE_DURATION" type="float" default="1">
+  Duration in seconds of a PGM output pulse when a pulse command is issued. Valid range: `0` to `4294967295`.
+</ParamField>
+
+## Time synchronization
+
+<ParamField path="SYNC_TIME" type="boolean" default="false">
+  When enabled, PAI periodically synchronizes the panel clock when it drifts beyond `SYNC_TIME_MIN_DRIFT` seconds.
+</ParamField>
+
+<ParamField path="SYNC_TIME_MIN_DRIFT" type="int" default="120">
+  Minimum clock drift in seconds before a time sync is triggered. Minimum allowed value is `120`. Valid range: `120` to `4294967295`.
+</ParamField>
+
+<ParamField path="SYNC_TIME_TIMEZONE" type="string" default="''">
+  Timezone to use when synchronizing the panel clock. When empty, the PAI host system timezone is used. Accepts standard IANA timezone names such as `'Europe/London'` or `'America/New_York'`.
+</ParamField>
+
+## Power monitoring
+
+<ParamField path="POWER_UPDATE_INTERVAL" type="int" default="60">
+  Interval in seconds between updates of the battery, DC, and VDC voltage readings from the panel. Valid range: `0` to `4294967295`.
+</ParamField>
+
+<ParamField path="PUSH_POWER_UPDATE_WITHOUT_CHANGE" type="boolean" default="true">
+  When `True`, PAI always publishes power readings to interfaces even if the values have not changed since the last update.
+</ParamField>
+
+<ParamField path="PUSH_UPDATE_WITHOUT_CHANGE" type="boolean" default="false">
+  When `True`, PAI publishes all state updates to interfaces even when the state has not changed. This applies to all resource types, not just power. Enabling this can produce significant additional traffic.
+</ParamField>
+
+## Example
+
+```python pai.conf
+import logging
+
+# Logging
+LOGGING_LEVEL_CONSOLE = logging.INFO
+LOGGING_LEVEL_FILE = logging.ERROR
+LOGGING_FILE = '/var/log/paradox.log'
+LOGGING_FILE_MAX_SIZE = 10
+LOGGING_FILE_MAX_FILES = 2
+
+# Panel
+PASSWORD = '0000'
+KEEP_ALIVE_INTERVAL = 10
+IO_TIMEOUT = 0.5
+LABEL_ENCODING = 'paradox-en'
+LABEL_REFRESH_INTERVAL = 15 * 60
+OUTPUT_PULSE_DURATION = 1
+
+# Time sync
+SYNC_TIME = True
+SYNC_TIME_MIN_DRIFT = 120
+SYNC_TIME_TIMEZONE = 'Europe/London'
+
+# Power
+POWER_UPDATE_INTERVAL = 60
+PUSH_POWER_UPDATE_WITHOUT_CHANGE = True
+PUSH_UPDATE_WITHOUT_CHANGE = False
+```

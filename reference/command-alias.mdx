@@ -1,0 +1,141 @@
+---
+title: "Command Alias Reference"
+description: "Configure aliases for text-based interface commands and MQTT command names"
+---
+
+PAI supports two separate alias dictionaries that let you map shorthand or external command names to the real PAI commands sent to the panel.
+
+---
+
+## COMMAND_ALIAS
+
+`COMMAND_ALIAS` is used by **text-based interfaces**: Signal, Pushbullet, and GSM/SMS. When a contact sends a message to PAI, the text is looked up in this dictionary and the mapped full command is executed.
+
+**Default:**
+
+```python pai.conf
+COMMAND_ALIAS = {
+    'arm': 'partition all arm',
+    'disarm': 'partition all disarm',
+}
+```
+
+With this default, sending the text `arm` triggers `partition all arm`, which arms all partitions.
+
+### Command format
+
+Full commands follow the pattern:
+
+```
+partition <target> <action>
+```
+
+- `<target>` — `all` to affect every partition, or a specific partition name or number (e.g. `Home`, `1`).
+- `<action>` — one of the partition commands listed below.
+
+### Partition commands
+
+| Command | Description |
+|---|---|
+| `arm` | Standard arm |
+| `disarm` | Disarm |
+| `arm_stay` | Stay / home arm |
+| `arm_sleep` | Sleep / night arm |
+
+### Custom alias example
+
+```python pai.conf
+COMMAND_ALIAS = {
+    # Short words for all-partition control
+    'arm': 'partition all arm',
+    'disarm': 'partition all disarm',
+    'stay': 'partition all arm_stay',
+    'night': 'partition all arm_sleep',
+    # Per-partition aliases
+    'arm home': 'partition Home arm',
+    'arm garage': 'partition Garage arm',
+}
+```
+
+<Tip>
+You can define as many aliases as you need. The key is what the user types; the value is the full PAI command that runs.
+</Tip>
+
+---
+
+## MQTT_COMMAND_ALIAS
+
+`MQTT_COMMAND_ALIAS` is used by the **MQTT interface**. When PAI receives a command on a control topic, the payload is looked up in this dictionary and translated to a PAI partition command before execution.
+
+This is primarily designed for **Homebridge and Home Assistant** compatibility, which publish state names like `armed_away` instead of PAI's native `arm` command.
+
+**Default:**
+
+```python pai.conf
+MQTT_COMMAND_ALIAS = {
+    # For Homebridge / Home Assistant compatibility
+    'armed_home': 'arm_stay',
+    'armed_night': 'arm_sleep',
+    'armed_away': 'arm',
+    'disarmed': 'disarm',
+}
+```
+
+### How it works
+
+<Steps>
+  <Step title="Client publishes a command">
+    A Home Assistant automation publishes `armed_away` to `paradox/control/partition/Home/armed_away`.
+  </Step>
+  <Step title="PAI receives the topic">
+    PAI reads the command segment from the topic: `armed_away`.
+  </Step>
+  <Step title="Alias lookup">
+    PAI checks `MQTT_COMMAND_ALIAS` and finds `'armed_away': 'arm'`.
+  </Step>
+  <Step title="Command executed">
+    PAI sends the `arm` command to the `Home` partition.
+  </Step>
+</Steps>
+
+If no alias match is found, the command string is used as-is — so native commands (`arm`, `disarm`, `arm_stay`, `arm_sleep`) always work without aliases.
+
+### Custom MQTT alias example
+
+```python pai.conf
+MQTT_COMMAND_ALIAS = {
+    # Home Assistant / Homebridge defaults
+    'armed_home': 'arm_stay',
+    'armed_night': 'arm_sleep',
+    'armed_away': 'arm',
+    'disarmed': 'disarm',
+    # Additional custom mappings
+    'AWAY': 'arm',
+    'HOME': 'arm_stay',
+    'OFF': 'disarm',
+}
+```
+
+---
+
+## Available partition commands
+
+The following are the native PAI partition commands accepted by both alias dictionaries:
+
+| Command | Description |
+|---|---|
+| `arm` | Standard full arm |
+| `disarm` | Disarm the partition |
+| `arm_stay` | Stay / home arm (perimeter only) |
+| `arm_sleep` | Sleep / night arm |
+
+---
+
+## Comparison
+
+| | `COMMAND_ALIAS` | `MQTT_COMMAND_ALIAS` |
+|---|---|---|
+| Used by | Signal, Pushbullet, GSM | MQTT interface |
+| Maps | Short text → full `partition <target> <action>` command | Command string → PAI partition action |
+| Target in alias | Encoded in the value (e.g. `partition all arm`) | Comes from the MQTT topic segment |
+| Default aliases | `arm`, `disarm` | `armed_home`, `armed_night`, `armed_away`, `disarmed` |

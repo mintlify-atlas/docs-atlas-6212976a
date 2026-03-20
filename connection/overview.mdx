@@ -1,0 +1,38 @@
+---
+title: 'Connection overview'
+description: 'Choose between serial and IP150 module connections for your Paradox panel'
+---
+
+PAI supports two methods for connecting to a Paradox alarm panel. Both expose the same monitoring and control capabilities — the difference is purely physical.
+
+<CardGroup cols={2}>
+  <Card title="Serial connection" icon="cable" href="/connection/serial">
+    Connect via the panel's built-in TTL serial port or a USB RS-232 adapter. The simplest option when your host is physically close to the panel.
+  </Card>
+  <Card title="IP150 module" icon="network" href="/connection/ip150">
+    Connect over your local network using the Paradox IP150 add-on module. Supports direct TCP connections and Paradox SWAN cloud relay.
+  </Card>
+</CardGroup>
+
+## Choosing a connection method
+
+| | Serial | IP150 |
+|---|---|---|
+| Requires extra hardware | Level shifter or USB adapter | IP150 module |
+| Distance from panel | Must be local | Any network-reachable host |
+| Firmware restriction | Do not upgrade EVO to 7.50.000+ | Firmware < 4.0 or ≥ 4.40.004 for direct mode |
+| Cloud dependency | None | Optional (SWAN) |
+
+## CONNECTION_TYPE config option
+
+The `CONNECTION_TYPE` setting in `pai.conf` controls which connection is used. It accepts either `'Serial'` or `'IP'`.
+
+```python pai.conf
+CONNECTION_TYPE = 'Serial'  # or 'IP'
+```
+
+All other connection settings are ignored when they do not apply to the selected type.
+
+<Note>
+  Serial-over-TCP is also supported — for example, when an ESP32 or Arduino acts as a proxy between the panel's serial port and your network. Use `CONNECTION_TYPE = 'IP'` and set `IP_CONNECTION_BARE = True` to bypass IP150 module framing and communicate directly with the serial stream over TCP.
+</Note>

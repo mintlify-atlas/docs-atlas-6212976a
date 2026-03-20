@@ -1,80 +1,137 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+description: "Connect PAI to your Paradox panel and publish events to MQTT in under 10 minutes"
 ---
 
-## Get started in three steps
+## Prerequisites
 
-Get your documentation site running locally and make your first customization.
+Before you start, make sure you have:
 
-### Step 1: Set up your local environment
+- **Python 3.8 or later** — PAI supports Python 3.8 through 3.14
+- **pip** — Python package installer
+- **A Paradox panel** — MG/SP/EVO series (EVO firmware must be below 7.50.000 for serial connections)
+- **PC Password** — A 4-digit hex password (`[0-9a-f]`). Find it in Babyware: right-click your panel → **Properties** → **PC Communication (BabyWare)** tab
+- **Your connection hardware** — either a serial cable/USB adapter to the panel's TTL 5V port, or an IP150 module on your network
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+<Warning>
+  Do not upgrade EVO firmware to version 7.50.000 or higher if you use a serial connection. Paradox introduced serial encryption in that version which permanently breaks PAI's ability to communicate with the panel.
+</Warning>
 
-### Step 2: Deploy your changes
+## Steps
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+<Steps>
+  <Step title="Install PAI">
+    Install the `paradox-alarm-interface` package from PyPI:
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    <CodeGroup>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    ```bash pip
+    pip install paradox-alarm-interface
+    ```
 
-### Step 3: Go live
+    ```bash pip3
+    pip3 install paradox-alarm-interface
+    ```
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    </CodeGroup>
+
+    This installs the `pai-service` command and all required dependencies, including `paho-mqtt`, `pyserial-asyncio`, and `construct`.
+  </Step>
+
+  <Step title="Create a configuration file">
+    Create a file named `pai.conf` in your current directory. PAI configuration files are Python scripts — values are plain Python assignments.
+
+    **For a serial connection** (direct cable or USB adapter):
+
+    ```python pai.conf
+    # Connection
+    CONNECTION_TYPE = 'Serial'
+    SERIAL_PORT = '/dev/ttyUSB0'   # adjust to your port
+    SERIAL_BAUD = 9600             # 9600 for SP/MG; 38400 for EVO
+
+    # PC Password (4-digit hex, e.g. '0000')
+    PASSWORD = '0000'
+
+    # MQTT
+    MQTT_ENABLE = True
+    MQTT_HOST = '127.0.0.1'
+    MQTT_PORT = 1883
+    ```
+
+    **For an IP150 module** (direct connection, firmware < 4.0 or ≥ 4.40.004):
+
+    ```python pai.conf
+    # Connection
+    CONNECTION_TYPE = 'IP'
+    IP_CONNECTION_HOST = '192.168.1.100'  # IP150 address on your network
+    IP_CONNECTION_PORT = 10000
+    IP_CONNECTION_PASSWORD = 'paradox'    # default IP module password
+
+    # PC Password (4-digit hex)
+    PASSWORD = '0000'
+
+    # MQTT
+    MQTT_ENABLE = True
+    MQTT_HOST = '127.0.0.1'
+    MQTT_PORT = 1883
+    ```
+
+    <Note>
+      PAI searches for `pai.conf` in the current directory first, then `~/.local/etc/pai.conf`, `/etc/pai/pai.conf`, and `/usr/local/etc/pai/pai.conf`. See [Installation](/installation#configuration-file-locations) for the full search order.
+    </Note>
+  </Step>
+
+  <Step title="Run pai-service">
+    Start PAI with the `pai-service` command:
+
+    ```bash
+    pai-service
+    ```
+
+    To use a config file in a non-default location:
+
+    ```bash
+    pai-service --config /path/to/pai.conf
+    ```
+
+    You can also set the `PAI_CONFIG_FILE` environment variable:
+
+    ```bash
+    PAI_CONFIG_FILE=/path/to/pai.conf pai-service
+    ```
+  </Step>
+
+  <Step title="Verify the connection">
+    On a successful connection, you will see output similar to this in your terminal:
+
+    ```text
+    2024-01-15 10:23:01 - INFO     - PAI - Starting Paradox Alarm Interface 2.x.x
+    2024-01-15 10:23:01 - INFO     - PAI - Config loaded from /home/user/pai.conf
+    2024-01-15 10:23:01 - INFO     - PAI - Console Log level set to 20
+    2024-01-15 10:23:01 - INFO     - PAI - Starting...
+    ```
+
+    If PAI cannot reach the panel it will log an error and retry automatically with an increasing back-off delay up to 30 seconds between attempts.
+
+    <Tip>
+      Enable more verbose output by adding `LOGGING_LEVEL_CONSOLE = 10` (DEBUG) to your `pai.conf` while troubleshooting. This will print raw packet data and decoded messages.
+    </Tip>
+  </Step>
+</Steps>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Connection methods" icon="plug" href="/connection/overview">
+    Detailed serial and IP150 connection setup, including USB adapters, baud rates, and SWAN cloud connection.
+  </Card>
+  <Card title="MQTT integration" icon="tower-broadcast" href="/integrations/mqtt">
+    Full MQTT topic hierarchy, partition control, zone states, and output commands.
+  </Card>
+  <Card title="Home Assistant" icon="house" href="/integrations/homeassistant">
+    Auto-discovery setup and push notification configuration for Home Assistant.
+  </Card>
+  <Card title="Installation options" icon="download" href="/installation">
+    Docker, from-source, and optional extras (Signal, Pushbullet, YAML config).
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

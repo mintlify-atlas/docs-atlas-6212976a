@@ -1,0 +1,212 @@
+---
+title: "Installation"
+description: "Install PAI via pip, Docker, or from source on Linux, Raspberry Pi, or NanoPi"
+---
+
+## Requirements
+
+- **Python 3.8–3.14** — all minor versions are tested and supported
+- **pip** — Python package installer
+
+PAI has been tested on Ubuntu Server 16.04+, Raspberry Pi 3, NanoPi NEO, and OrangePi 2G-IOT. It runs on any Linux system with a supported Python version.
+
+## Installation methods
+
+<Tabs>
+  <Tab title="pip (stable)">
+    Install the latest stable release from PyPI:
+
+    ```bash
+    pip install paradox-alarm-interface
+    ```
+
+    This installs the `pai-service` command and all core dependencies:
+    `construct`, `paho-mqtt`, `pyserial-asyncio`, `python-slugify`, `pytz`, and `requests`.
+
+    <Note>
+      On systems where `python3` is the default, use `pip3` instead of `pip`.
+    </Note>
+  </Tab>
+
+  <Tab title="pip with extras">
+    PAI has optional dependency groups for additional notification interfaces. Install them with bracket syntax:
+
+    **YAML configuration support**
+
+    ```bash
+    pip install "paradox-alarm-interface[YAML]"
+    ```
+
+    Installs `pyyaml>=5.2.0`, enabling `pai.yaml` config files in addition to the default Python `.conf` format.
+
+    **Pushbullet notifications**
+
+    ```bash
+    pip install "paradox-alarm-interface[Pushbullet]"
+    ```
+
+    Installs `pushbullet.py>=0.11.0` and `ws4py>=0.4.2`.
+
+    **Signal messenger notifications**
+
+    ```bash
+    pip install "paradox-alarm-interface[Signal]"
+    ```
+
+    Installs `pygobject>=3.20.0`, `pydbus>=0.6.0`, and `gi>=1.2`. Signal support requires a running [signal-cli](https://github.com/AsamK/signal-cli) instance accessible via D-Bus.
+
+    **Multiple extras at once**
+
+    ```bash
+    pip install "paradox-alarm-interface[YAML,Pushbullet]"
+    ```
+  </Tab>
+
+  <Tab title="Docker">
+    PAI provides official multi-architecture Docker images on Docker Hub.
+
+    **Supported architectures:** `386`, `amd64`, `armv6`, `armv7`, `arm64`
+
+    This covers x86 servers, Raspberry Pi (all generations), NanoPi, and OrangePi boards.
+
+    Pull the latest image:
+
+    ```bash
+    docker pull paradoxalarminterface/pai
+    ```
+
+    Run with a config file mounted from the host:
+
+    ```bash
+    docker run -d \
+      --name pai \
+      -v /etc/pai:/etc/pai \
+      -v /var/log/pai:/var/log/pai \
+      paradoxalarminterface/pai
+    ```
+
+    The container reads its configuration from `/etc/pai/pai.conf` by default (controlled by the `PAI_CONFIG_FILE` environment variable inside the container).
+
+    To pass a device for serial connection, add the `--device` flag:
+
+    ```bash
+    docker run -d \
+      --name pai \
+      --device /dev/ttyUSB0 \
+      -v /etc/pai:/etc/pai \
+      -v /var/log/pai:/var/log/pai \
+      paradoxalarminterface/pai
+    ```
+
+    The container exposes port `10000/tcp` for the IP socket interface and port `18839/tcp` for the internal MQTT bind address.
+
+    <Warning>
+      The Docker image includes a default `pai.conf` copied from the example config. Mount your own `/etc/pai` volume to override it with your real settings before starting the container.
+    </Warning>
+  </Tab>
+
+  <Tab title="From source">
+    Clone the repository and install in editable mode:
+
+    ```bash
+    git clone https://github.com/ParadoxAlarmInterface/pai.git
+    cd pai
+    pip install -e .
+    ```
+
+    To include all optional extras:
+
+    ```bash
+    pip install -e ".[YAML,Pushbullet,Signal]"
+    ```
+
+    You can also run PAI directly without installing it:
+
+    ```bash
+    ./run.sh
+    ```
+
+    Or invoke the module directly:
+
+    ```bash
+    python3 -m paradox.console_scripts.pai_run
+    ```
+
+    <Note>
+      When installing from source, use a virtual environment to avoid conflicts with system packages:
+      ```bash
+      python3 -m venv .venv && source .venv/bin/activate
+      pip install -e .
+      ```
+    </Note>
+  </Tab>
+</Tabs>
+
+## Configuration file locations
+
+At startup, PAI searches for a configuration file in the following locations, in order:
+
+| Path | Notes |
+|------|-------|
+| `./pai.conf` | Current working directory |
+| `~/.local/etc/pai.conf` | User-level config |
+| `/etc/pai/pai.conf` | System-wide config (recommended for services) |
+| `/usr/local/etc/pai/pai.conf` | Alternative system-wide location |
+
+PAI also accepts JSON and YAML variants at the same paths:
+
+- `pai.json`
+- `pai.yaml` (requires the `YAML` extra)
+
+To override the search entirely, set the `PAI_CONFIG_FILE` environment variable:
+
+```bash
+export PAI_CONFIG_FILE=/opt/pai/my-config.conf
+pai-service
+```
+
+You can also pass the path directly with the `--config` flag:
+
+```bash
+pai-service --config /opt/pai/my-config.conf
+```
+
+## Running as a systemd service
+
+To run PAI automatically on boot and keep it running if it crashes, create a systemd unit file:
+
+```ini /etc/systemd/system/pai.service
+[Unit]
+Description=PAI - Paradox Alarm Interface
+After=network.target
+
+[Service]
+Type=simple
+User=pai
+ExecStart=/usr/local/bin/pai-service
+Restart=on-failure
+RestartSec=5
+Environment=PAI_CONFIG_FILE=/etc/pai/pai.conf
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start the service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable pai
+sudo systemctl start pai
+```
+
+Check the service status and logs:
+
+```bash
+sudo systemctl status pai
+sudo journalctl -u pai -f
+```
+
+<Tip>
+  Create a dedicated system user for PAI (`sudo useradd -r -s /bin/false pai`) and add it to the `dialout` group if using a serial connection (`sudo usermod -aG dialout pai`).
+</Tip>

@@ -1,0 +1,180 @@
+---
+title: "MQTT Topics Reference"
+description: "Complete reference for all MQTT topics published and subscribed by PAI"
+---
+
+All topics are rooted under `MQTT_BASE_TOPIC` (default: `paradox`). In the patterns below, `{base}` refers to this value.
+
+<Note>
+Customize the base topic and all sub-topic segments in your config file. See [Configuration Options](/reference/config-options) for the full list of `MQTT_*_TOPIC` keys.
+</Note>
+
+## Topic structure overview
+
+```text
+{base}/
+├── zones/{name}/states/{property}
+├── partitions/{name}/states/{property}
+├── outputs/{name}/states/{property}
+├── buses/{name}/states/{property}
+├── doors/{name}/states/{property}
+├── keypads/{name}/states/{property}
+├── repeaters/{name}/states/{property}
+├── users/{name}/states/{property}
+├── system/{property}
+├── events/raw
+├── interface/pai_status
+├── interface/availability
+├── control/partition/{name}/{command}
+├── control/output/{name}/{command}
+├── control/panic
+├── command_status
+└── definitions/{type}/{name}
+```
+
+---
+
+## State topics (published by PAI)
+
+PAI publishes state changes for each panel element as individual property topics. `{name}` is the element's label as reported by the panel (slugified).
+
+| Topic pattern | Description |
+|---|---|
+| `{base}/zones/{name}/states/{property}` | Zone state property (e.g. `open`, `alarm`, `tamper`, `bypass`) |
+| `{base}/partitions/{name}/states/{property}` | Partition state property (e.g. `arm`, `alarm`, `current_state`, `target_state`) |
+| `{base}/outputs/{name}/states/{property}` | PGM output state property |
+| `{base}/buses/{name}/states/{property}` | Bus module state property |
+| `{base}/doors/{name}/states/{property}` | Door state property |
+| `{base}/keypads/{name}/states/{property}` | Keypad state property |
+| `{base}/repeaters/{name}/states/{property}` | Repeater state property |
+| `{base}/users/{name}/states/{property}` | User state property |
+| `{base}/system/{property}` | Panel/system-level state property |
+
+<Tip>
+Set `MQTT_USE_NUMERIC_STATES = True` to publish `0`/`1` instead of `False`/`True` for boolean properties.
+</Tip>
+
+### State values
+
+Boolean state properties are published as `True` / `False` by default (or `1` / `0` when `MQTT_USE_NUMERIC_STATES` is enabled). All messages are published with `MQTT_RETAIN = True` by default so a new subscriber immediately receives the current state.
+
+---
+
+## Event topics (published by PAI)
+
+| Topic pattern | Description |
+|---|---|
+| `{base}/events/raw` | Raw panel event as a JSON object. Published when `MQTT_PUBLISH_RAW_EVENTS = True` (default). |
+
+---
+
+## Interface status topics (published by PAI)
+
+| Topic pattern | Description |
+|---|---|
+| `{base}/interface/pai_status` | PAI run state. Values: `initializing`, `online`, `paused`, `stopped`, `error` |
+| `{base}/interface/availability` | Broker-level availability. Values: `online` / `offline` (LWT) |
+
+<Info>
+The `availability` topic uses an MQTT Last Will and Testament (LWT) message so that downstream consumers (e.g. Home Assistant) detect when PAI disconnects unexpectedly.
+</Info>
+
+---
+
+## Control topics (subscribed by PAI)
+
+Send commands to PAI by publishing to these topics. The message payload is the command value.
+
+| Topic pattern | Direction | Payload / description |
+|---|---|---|
+| `{base}/control/partition/{name}/{command}` | Subscribe | Arm/disarm a partition. See [available partition commands](#partition-commands) below. |
+| `{base}/control/output/{name}/{command}` | Subscribe | Control a PGM output. Commands: `on`, `off`, `pulse` |
+| `{base}/control/panic` | Subscribe | Trigger a panic alarm |
+
+<Warning>
+Commands are executed immediately. Ensure only authorized MQTT clients have publish access to the `{base}/control/#` topic tree.
+</Warning>
+
+### Partition commands
+
+| Command | Description |
+|---|---|
+| `arm` | Standard arm |
+| `disarm` | Disarm |
+| `arm_stay` | Stay / home arm |
+| `arm_sleep` | Sleep / night arm |
+
+Commands are translated through `MQTT_COMMAND_ALIAS` before execution, so you can publish `armed_away`, `armed_home`, `armed_night`, or `disarmed` to use Home Assistant / Homebridge state names out of the box. See [Command Alias Reference](/reference/command-alias).
+
+---
+
+## Command status topic
+
+| Topic pattern | Description |
+|---|---|
+| `{base}/command_status` | Result of the most recently executed command, published when `MQTT_PUBLISH_COMMAND_STATUS = True` |
+
+---
+
+## Definitions topics (published by PAI)
+
+Published when `MQTT_PUBLISH_DEFINITIONS = True`.
+
+| Topic pattern | Description |
+|---|---|
+| `{base}/definitions/{type}/{name}` | Element definition metadata (partition, zone, user, etc.) |
+
+---
+
+## Home Assistant discovery topics
+
+Published when `MQTT_HOMEASSISTANT_AUTODISCOVERY_ENABLE = True`. The prefix is controlled by `MQTT_HOMEASSISTANT_DISCOVERY_PREFIX` (default: `homeassistant`).
+
+| Topic pattern | Description |
+|---|---|
+| `{ha_prefix}/alarm_control_panel/{device}/{name}/config` | HA auto-discovery payload for a partition as an alarm control panel entity |
+| `{ha_prefix}/binary_sensor/{device}/{name}/config` | HA auto-discovery payload for a zone as a binary sensor entity |
+
+<Tip>
+Set `MQTT_HOMEASSISTANT_ENTITY_PREFIX` to a string like `Paradox {serial_number} ` to prefix all discovered entity names with your panel's serial number.
+</Tip>
+
+---
+
+## MQTT Dash topic
+
+Published when `MQTT_DASH_PUBLISH = True`.
+
+| Topic pattern | Description |
+|---|---|
+| `metrics/exchange/pai` (default) | MQTT Dash formatted data. Configurable via `MQTT_DASH_TOPIC`. |
+
+---
+
+## Notifications topic
+
+| Topic pattern | Description |
+|---|---|
+| `{base}/notifications` | Interface notification messages |
+
+---
+
+## Example: listening to all zone states
+
+```bash
+mosquitto_sub -h 127.0.0.1 -t 'paradox/zones/#'
+```
+
+## Example: arming partition 1
+
+```bash
+mosquitto_pub -h 127.0.0.1 -t 'paradox/control/partition/Partition1/arm' -m ''
+```
+
+## Example: using Home Assistant state names
+
+With the default `MQTT_COMMAND_ALIAS` you can publish Home Assistant state names directly:
+
+```bash
+mosquitto_pub -h 127.0.0.1 -t 'paradox/control/partition/Partition1/armed_away' -m ''
+```

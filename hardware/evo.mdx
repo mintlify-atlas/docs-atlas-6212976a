@@ -1,0 +1,129 @@
+---
+title: 'EVO Panels'
+description: 'PAI support for Paradox EVO series alarm panels'
+---
+
+The EVO series (Digiplex EVO) is the most feature-rich panel family supported by PAI. EVO panels support access control doors in addition to the standard zones, partitions, outputs, and users available on Spectra and Magellan panels.
+
+<Warning>
+  **Do not upgrade EVO firmware to version 7.50.000 or higher** if you use a serial connection.
+
+  Paradox introduced serial communication encryption in firmware 7.50.000. This breaks PAI's ability to communicate with the panel over serial. The upgrade is irreversible — Paradox sells a separate unlock code to re-enable the unencrypted serial port.
+</Warning>
+
+## Supported models
+
+PAI detects the EVO panel model automatically during the connection handshake and instantiates the appropriate driver.
+
+<AccordionGroup>
+  <Accordion title="EVO48">
+    **Product ID:** `DIGIPLEX_EVO_48`
+
+    - Up to 48 zones
+    - Up to 4 partitions
+    - Up to 96 users
+    - Zone labels stored at EEPROM addresses `0x00430`–`0x00730`
+    - Partition labels at `0x03A6B`–`0x03C17`
+  </Accordion>
+  <Accordion title="EVO96">
+    **Product ID:** `DIGIPLEX_EVO_96`
+
+    - Up to 96 zones (48 base + 48 extended)
+    - Up to 8 partitions
+    - Up to 999 users
+    - Zone labels stored at EEPROM addresses `0x00430`–`0x00A30`
+  </Accordion>
+  <Accordion title="EVO192">
+    **Product ID:** `DIGIPLEX_EVO_192`
+
+    - Up to 192 zones (96 base + 96 extended)
+    - Up to 8 partitions
+    - Up to 999 users
+    - Zone labels stored at EEPROM addresses `0x00430`–`0x068F7`
+  </Accordion>
+  <Accordion title="EVO HD / EVO HD+">
+    **Product IDs:** `DIGIPLEX_EVO_HD`, `DIGIPLEX_EVO_HD_PLUS`
+
+    - Up to 192 zones
+    - Up to 8 partitions
+    - Up to 999 users
+    - PGM label addresses slightly offset from EVO192 (`0x070A6` vs `0x07082`)
+    - Both HD and HD+ use the same `Panel_EVOHD` driver
+  </Accordion>
+</AccordionGroup>
+
+## Serial connection
+
+EVO panels communicate at a higher baud rate than Spectra/Magellan panels. Set `SERIAL_BAUD` in your PAI configuration accordingly.
+
+| Panel variant | Recommended baud rate |
+|---|---|
+| EVO standard | 38400 (default EVO setting) |
+| EVO+ variants | 57600 or 115200 |
+
+<Info>
+  The default PAI baud rate setting is 9600, which is the default for SP/MG panels. For EVO panels, explicitly set `SERIAL_BAUD` to `38400` or `57600` in your configuration. The EVO parser exposes a `serial_port_baud_rate_57600` flag in the initialization response that indicates the panel's current setting.
+</Info>
+
+### Serial connection example
+
+```python config.py
+CONNECTION_TYPE = "Serial"
+SERIAL_PORT = "/dev/ttyUSB0"
+SERIAL_BAUD = 38400  # Use 38400 (default EVO setting) or 57600
+PASSWORD = "0000"  # Your 4-digit PC password
+```
+
+## Supported resources
+
+EVO panels support a broader set of controllable resources than Spectra/Magellan panels.
+
+<CardGroup cols={2}>
+  <Card title="Zones" icon="sensor">
+    Read zone status, bypass, clear bypass, and clear alarm memory. EVO48 supports up to 48 zones; EVO96/192/HD support up to 192.
+  </Card>
+  <Card title="Partitions" icon="table-cells">
+    Arm, disarm, and read partition status. Up to 4 partitions on EVO48; up to 8 on all other EVO models. Partition definitions are bit-encoded at EEPROM address `0x39D8`.
+  </Card>
+  <Card title="Outputs (PGMs)" icon="bolt">
+    Control programmable outputs. Commands: on, off, pulse. PGM labels are stored starting at `0x07082` (or `0x070A6` for EVOHD).
+  </Card>
+  <Card title="Doors" icon="door-open">
+    Access control door management. Unique to EVO panels — not available on Spectra/Magellan. Door labels stored at `0x0345C`–`0x365C`.
+  </Card>
+  <Card title="Users" icon="users">
+    User management and code entry tracking. EVO48 supports up to 96 users; EVO96/192/HD support up to 999 users. User labels at `0x03E47`–`0x04E47`.
+  </Card>
+  <Card title="Modules" icon="microchip">
+    Bus module tracking (combus). EVO48 supports labels for one range of modules; EVO96/192/HD include a second range.
+  </Card>
+</CardGroup>
+
+## EVO-specific events
+
+The EVO event map includes events not found in Spectra/Magellan panels:
+
+- **Door events** — request for exit, access denied, door left open alarm, door forced alarm, door left open restore, door forced open restore
+- **Access control** — user access granted/denied on door with user and door identification
+- **Combus module events** — new module assigned on combus, module manually removed from combus
+- **Intellizone** — intellizone triggered, zone excluded on force arming, zone went back to arm status
+- **TX delay** — TX delay zone alarm
+- **Utility keys** — utility key events
+
+## Zone control commands
+
+The following zone commands are supported on EVO panels:
+
+| Command | Action |
+|---|---|
+| `bypass` | Set the zone bypassed flag |
+| `clear_bypass` | Clear the zone bypassed flag |
+| `clear_alarm_memory` | Clear the generated alarm flag |
+
+## Partition control commands
+
+Partition commands are sent using `PerformPartitionAction`. Supported commands depend on what the panel accepts via the EVO protocol's `PerformPartitionAction` parser.
+
+## EEPROM and RAM
+
+EVO panels use a 64-byte maximum EEPROM response data length (`max_eeprom_response_data_length = 64`). RAM is readable across addresses 0–58; EEPROM spans 0–0xFFFF in 64-byte chunks.

@@ -1,0 +1,180 @@
+---
+title: "Event Filtering"
+description: "Control which alarm events trigger notifications using tag-based filters or regular expressions"
+---
+
+Event filtering controls which events PAI forwards to notification interfaces — Pushbullet, Pushover, Signal, GSM, and Home Assistant Notifications. By default each interface ships with a set of tag-based filters. You can replace these with regexp-based filters for fine-grained control.
+
+<Warning>
+  Tag-based filters (`_EVENT_FILTERS`) and regexp-based filters (`_ALLOW_EVENTS` / `_IGNORE_EVENTS`) are mutually exclusive. If `_ALLOW_EVENTS` is set, `_EVENT_FILTERS` is ignored for that interface.
+</Warning>
+
+## Filtering methods
+
+<Tabs>
+  <Tab title="Tag-based (EVENT_FILTERS)">
+    Each event carries a list of tags assigned in the hardware event map. A filter entry is a comma-separated string of tags. An event matches if it carries **all** the tags listed in at least one entry.
+
+    Prefix a tag with `-` to exclude events that carry it.
+
+    **Format:**
+    ```python pai.conf
+    PUSHBULLET_EVENT_FILTERS = [
+        'live,alarm,-restore',  # live alarm events, but not restores
+        'trouble,-clock',       # trouble events, except clock trouble
+        'live,tamper',          # live tamper events
+    ]
+    ```
+
+    This is the default filter for Pushbullet, Pushover, Signal, and Home Assistant Notifications.
+
+    GSM uses a narrower default:
+    ```python pai.conf
+    GSM_EVENT_FILTERS = [
+        'live,zone,alarm,trigger'
+    ]
+    ```
+  </Tab>
+  <Tab title="Regexp-based (ALLOW_EVENTS + IGNORE_EVENTS)">
+    Regexp filters match against the event key, which has the format:
+
+    ```
+    type,label,property=value,property2=value2
+    ```
+
+    - **`_ALLOW_EVENTS`** — list of patterns; the event must match at least one.
+    - **`_IGNORE_EVENTS`** — list of patterns; events matching any of these are excluded, even if they matched `_ALLOW_EVENTS`.
+
+    **Example:**
+    ```python pai.conf
+    PUSHBULLET_ALLOW_EVENTS = [r".*"]  # allow all events...
+    PUSHBULLET_IGNORE_EVENTS = [
+        r"zone,[\.\w]+,no_delay=True",   # ...except no-delay zones
+        r"zone,[\.\w]+,exit_delay=.*"    # ...and exit delay changes
+    ]
+    ```
+  </Tab>
+</Tabs>
+
+## Available tags
+
+The following tags are used across the EVO and Spectra/Magellan event maps. Use them in `_EVENT_FILTERS` entries.
+
+| Tag | Description |
+|---|---|
+| `alarm` | Any alarm event |
+| `trigger` | An alarm was triggered |
+| `restore` | A previous alarm or trouble condition was restored |
+| `trouble` | A system trouble event (AC failure, battery failure, tamper, etc.) |
+| `tamper` | A zone or module tamper event |
+| `arm` | A partition was armed |
+| `disarm` | A partition was disarmed |
+| `after_alarm` | Disarmed after an alarm was active |
+| `bypass` | A zone bypass was toggled |
+| `fire` | A fire alarm |
+| `access` | An access control event (door access) |
+| `granted` | Access was granted |
+| `denied` | Access was denied |
+| `cancel` | An alarm was cancelled |
+| `clock` | A clock/time-related trouble (use `-clock` to exclude clock trouble from `trouble` filters) |
+| `supervision` | A wireless supervision event |
+| `silent_alarm` | A silent alarm |
+| `buzzer_alarm` | A buzzer alarm |
+| `steady_alarm` | A steady alarm |
+| `pulse_alarm` | A pulse alarm |
+| `strobe` | A strobe alarm |
+| `medic` | A paramedic/medical alarm |
+
+<Note>
+  The `live` tag is not defined in the event maps. Tag-based filters using `live` are interpreted as "the event happened in real time" as opposed to historical events retrieved from the panel log. If your setup sends historical events at startup, use `live` to restrict notifications to real-time events only.
+</Note>
+
+## Per-interface configuration
+
+Every notification interface has its own independent set of filter settings. The interface prefix replaces the generic prefix:
+
+<AccordionGroup>
+  <Accordion title="Pushbullet">
+    ```python pai.conf
+    PUSHBULLET_EVENT_FILTERS = [
+        'live,alarm,-restore',
+        'trouble,-clock',
+        'live,tamper',
+    ]
+    # PUSHBULLET_ALLOW_EVENTS = [r".*"]
+    # PUSHBULLET_IGNORE_EVENTS = []
+    PUSHBULLET_MIN_EVENT_LEVEL = 'INFO'
+    ```
+  </Accordion>
+
+  <Accordion title="Pushover">
+    ```python pai.conf
+    PUSHOVER_EVENT_FILTERS = [
+        'live,alarm,-restore',
+        'trouble,-clock',
+        'live,tamper',
+    ]
+    # PUSHOVER_ALLOW_EVENTS = [r".*"]
+    # PUSHOVER_IGNORE_EVENTS = []
+    PUSHOVER_MIN_EVENT_LEVEL = 'INFO'
+    ```
+  </Accordion>
+
+  <Accordion title="Signal">
+    ```python pai.conf
+    SIGNAL_EVENT_FILTERS = [
+        'live,alarm,-restore',
+        'trouble,-clock',
+        'live,tamper',
+    ]
+    # SIGNAL_ALLOW_EVENTS = [r".*"]
+    # SIGNAL_IGNORE_EVENTS = []
+    SIGNAL_MIN_EVENT_LEVEL = 'INFO'
+    ```
+  </Accordion>
+
+  <Accordion title="GSM">
+    ```python pai.conf
+    GSM_EVENT_FILTERS = [
+        'live,zone,alarm,trigger'
+    ]
+    # GSM_ALLOW_EVENTS = [r".*"]
+    # GSM_IGNORE_EVENTS = []
+    GSM_MIN_EVENT_LEVEL = 'CRITICAL'
+    ```
+
+    <Note>GSM defaults to `CRITICAL` minimum level and a very narrow tag filter to minimize SMS costs. Widen these carefully.</Note>
+  </Accordion>
+
+  <Accordion title="Home Assistant Notifications">
+    ```python pai.conf
+    HOMEASSISTANT_NOTIFICATIONS_EVENT_FILTERS = [
+        'live,alarm,-restore',
+        'trouble,-clock',
+        'live,tamper',
+    ]
+    # HOMEASSISTANT_NOTIFICATIONS_ALLOW_EVENTS = [r".*"]
+    # HOMEASSISTANT_NOTIFICATIONS_IGNORE_EVENTS = []
+    HOMEASSISTANT_NOTIFICATIONS_MIN_EVENT_LEVEL = 'INFO'
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## MIN_EVENT_LEVEL
+
+Each interface also has a minimum event level threshold. Events below this level are dropped before any filter is applied.
+
+| Level | Description |
+|---|---|
+| `DEBUG` | All events |
+| `INFO` | Informational and above (default for most interfaces) |
+| `WARN` | Warnings and above |
+| `ERROR` | Errors and above |
+| `CRITICAL` | Critical events only (default for GSM) |
+
+Set the level in your config:
+
+```python pai.conf
+PUSHBULLET_MIN_EVENT_LEVEL = 'WARN'
+GSM_MIN_EVENT_LEVEL = 'CRITICAL'
+```

@@ -1,0 +1,154 @@
+---
+title: 'Spectra & Magellan Panels'
+description: 'PAI support for Paradox Spectra (SP) and Magellan (MG) series alarm panels'
+---
+
+The Spectra (SP) and Magellan (MG) panel families are handled by a single shared driver in PAI. Both families share the same communication protocol, memory map layout, event structure, and resource model. Support for both families is very stable.
+
+## Supported models
+
+PAI detects the panel model automatically during the connection handshake.
+
+<Tabs>
+  <Tab title="Spectra (SP)">
+    | Model | Product ID |
+    |---|---|
+    | SP4000 | `SPECTRA_SP4000` |
+    | SP5500 | `SPECTRA_SP5500` |
+    | SP550+ | `SPECTRA_SP550_PLUS` |
+    | SP6000 | `SPECTRA_SP6000` |
+    | SP6000+ | `SPECTRA_SP6000_PLUS` |
+    | SP65 | `SPECTRA_SP65` |
+    | SP7000 | `SPECTRA_SP7000` |
+    | SP7000+ | `SPECTRA_SP7000_PLUS` |
+
+    <Tip>SP7000 is a tested and confirmed working model.</Tip>
+  </Tab>
+  <Tab title="Magellan (MG)">
+    | Model | Product ID |
+    |---|---|
+    | MG5000 | `MAGELLAN_MG5000` |
+    | MG5050 | `MAGELLAN_MG5050` |
+    | MG5050+ | `MAGELLAN_MG5050_PLUS` |
+    | MG5075 | `MAGELLAN_MG5075` |
+
+    <Tip>MG5050 is a tested and confirmed working model.</Tip>
+  </Tab>
+</Tabs>
+
+## Serial connection
+
+Spectra and Magellan panels use a baud rate of 9600, which is also the PAI default.
+
+```python config.py
+CONNECTION_TYPE = "Serial"
+SERIAL_PORT = "/dev/ttyUSB0"
+SERIAL_BAUD = 9600  # Default for SP/MG panels
+PASSWORD = "0000"  # Your 4-digit PC password
+```
+
+<Info>
+  The serial port on Spectra/Magellan panels is TTL 5V. A level shifter is required when connecting to 3.3V GPIO on host hardware such as a Raspberry Pi or NanoPi NEO.
+</Info>
+
+## IP150 module
+
+All Spectra and Magellan panels that support the IP150 module can use it as an alternative to the serial connection. PAI supports the IP150 in two modes:
+
+<AccordionGroup>
+  <Accordion title="Direct connection">
+    Supported with IP module firmware `< 4.0` or `>= 4.40.004`.
+
+    ```python config.py
+    CONNECTION_TYPE = "IP"
+    IP_CONNECTION_HOST = "192.168.1.100"  # IP150 address on your network
+    IP_CONNECTION_PORT = 10000
+    IP_CONNECTION_PASSWORD = "paradox"  # Default IP module password
+    PASSWORD = "0000"  # PC password
+    ```
+  </Accordion>
+  <Accordion title="SITE ID (SWAN cloud)">
+    Supported with IP module firmware `> 4.0`. Requires a SITE ID and the email address registered to the site.
+
+    ```python config.py
+    CONNECTION_TYPE = "IP"
+    IP_CONNECTION_SITEID = "YOUR-SITE-ID"
+    IP_CONNECTION_EMAIL = "your@email.com"
+    IP_CONNECTION_PASSWORD = "paradox"
+    PASSWORD = "0000"
+    ```
+
+    <Warning>
+      SWAN cloud connections are not recommended due to known security issues. Use direct connection where possible.
+    </Warning>
+  </Accordion>
+</AccordionGroup>
+
+## Supported resources
+
+Spectra and Magellan panels expose a rich set of resources via PAI.
+
+<CardGroup cols={2}>
+  <Card title="Zones" icon="sensor">
+    Zone status monitoring, bypass and clear bypass. Zone labels stored at EEPROM `0x010`–`0x210`. Zone definitions at `0x730`–`0x7A0`.
+  </Card>
+  <Card title="Partitions" icon="table-cells">
+    Arm, disarm, arm stay, arm sleep, arm force, arm stay-stayd, arm sleep-stay, disarm all. Partition labels at `0x310`–`0x330`.
+  </Card>
+  <Card title="Outputs (PGMs)" icon="bolt">
+    PGM control with commands: `on_override`, `off_override`, `on`, `off`, `pulse`. Pulse mode sends on, waits `OUTPUT_PULSE_DURATION` seconds, then sends off. PGM labels at `0x210`–`0x310`.
+  </Card>
+  <Card title="Users" icon="users">
+    User label tracking. Up to 128 users. Labels stored at `0x330`–`0x530`.
+  </Card>
+  <Card title="Buses & modules" icon="microchip">
+    Bus module tracking. Module labels stored at `0x530`–`0x620`.
+  </Card>
+  <Card title="Repeaters" icon="radio-tower">
+    Wireless repeater tracking. Up to 2 repeaters. Labels at `0x620`–`0x640`.
+  </Card>
+  <Card title="Keypads" icon="keyboard">
+    Wireless keypad tracking. Labels at `0x640`–`0x6C0`.
+  </Card>
+  <Card title="Sirens" icon="bell">
+    Wireless siren tracking. Labels at `0x6D0`–`0x700`.
+  </Card>
+</CardGroup>
+
+## Partition commands
+
+The following partition commands are supported on Spectra/Magellan panels:
+
+| Command | Action code |
+|---|---|
+| `arm` | `0x04` |
+| `disarm` | `0x05` |
+| `arm_stay` | `0x01` |
+| `arm_force` | `0x02` |
+| `arm_sleep` | `0x03` |
+| `arm_stay_stayd` | `0x06` |
+| `arm_sleep_stay` | `0x07` |
+| `disarm_all` | `0x08` |
+
+## PGM status support
+
+PGM status polling requires firmware version 6 or higher. PAI checks the firmware version during initialization:
+
+```python
+self.supports_pgm_status = self.settings.firmware.version >= 6
+```
+
+If the panel firmware is below version 6, address 7 (PGM status) is removed from the status request list automatically.
+
+## Differences between Spectra and Magellan
+
+Spectra and Magellan panels share the same PAI driver (`Panel` in `paradox/hardware/spectra_magellan/panel.py`) and are functionally identical from PAI's perspective. The key distinction is the wireless capability of Magellan panels:
+
+- **Magellan panels** are wireless-native and expose repeater, keypad, and wireless module resources directly
+- **Spectra panels** are wired systems that may or may not include wireless expansion modules
+
+Both families produce the same event types including wireless zone signal strength events (`Zone {label} signal strength weak 1–4`), wireless module supervision, and wireless module tamper events — PAI handles these uniformly regardless of family.
+
+## EEPROM and RAM
+
+Spectra/Magellan panels use a 32-byte maximum EEPROM response data length (`max_eeprom_response_data_length = 32`). RAM base addresses are `0x8000` (status base 1) and `0x1FE0` (status base 2). RAM spans 9 pages; EEPROM spans `0x0000`–`0x0FFF` in 32-byte chunks.

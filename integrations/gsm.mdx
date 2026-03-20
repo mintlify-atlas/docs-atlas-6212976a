@@ -1,0 +1,175 @@
+---
+title: "GSM / SMS Integration"
+description: "Send SMS alarm notifications via an attached GSM modem"
+---
+
+The GSM integration lets PAI send SMS notifications and accept control commands received as SMS messages. It communicates directly with an attached GSM modem over a serial port using AT commands.
+
+<Tip>
+  Because SMS delivery works independently of the internet and your local network, the GSM integration is well suited as a fallback notification channel for critical alerts.
+</Tip>
+
+## Prerequisites
+
+<CardGroup cols={2}>
+  <Card title="GSM modem" icon="signal">
+    A serial GSM modem connected via USB or UART. The SIM900 module has been tested and confirmed to work.
+  </Card>
+  <Card title="SIM card" icon="credit-card">
+    An active SIM card with SMS capability inserted in the modem.
+  </Card>
+</CardGroup>
+
+<Note>
+  No additional packages beyond the base PAI installation are required. Serial communication is handled by `pyserial-asyncio`, which is already a core dependency.
+</Note>
+
+## Configuration
+
+Add the following to your `pai.conf`:
+
+```python pai.conf
+GSM_ENABLE = True
+GSM_MODEM_PORT = '/dev/ttyUSB0'          # Pathname of the serial port for the GSM modem
+GSM_MODEM_BAUDRATE = 115200              # Baud rate: 9600–115200
+GSM_CONTACTS = ['+12125551234']          # Phone numbers allowed to send commands and receive SMS
+
+GSM_MIN_EVENT_LEVEL = 'CRITICAL'         # Default is CRITICAL — SMS is for critical alerts only
+
+# Event filtering by tags (default):
+GSM_EVENT_FILTERS = [
+    'live,zone,alarm,trigger',           # Live zone alarm trigger events
+]
+```
+
+### Configuration reference
+
+<AccordionGroup>
+  <Accordion title="GSM_ENABLE">
+    Enable or disable the GSM interface.
+
+    **Default:** `False`
+  </Accordion>
+  <Accordion title="GSM_MODEM_PORT">
+    The filesystem path of the serial port to which the GSM modem is connected. Common values are `/dev/ttyUSB0` for USB modems or `/dev/ttyS0` for hardware UART.
+
+    **Default:** `''`
+  </Accordion>
+  <Accordion title="GSM_MODEM_BAUDRATE">
+    The baud rate for serial communication with the modem. Must be between `9600` and `115200`.
+
+    **Default:** `115200`
+  </Accordion>
+  <Accordion title="GSM_CONTACTS">
+    A list of phone numbers in international format that are allowed to send SMS commands to the panel and will receive SMS notifications. SMS messages from numbers not in this list are logged as unknown and ignored.
+
+    **Default:** `[]`
+
+    **Example:**
+    ```python
+    GSM_CONTACTS = ['+12125551234', '+442071234567']
+    ```
+  </Accordion>
+  <Accordion title="GSM_MIN_EVENT_LEVEL">
+    The minimum severity level for events to trigger an SMS. Accepted values: `DEBUG`, `INFO`, `WARN`, `ERROR`, `CRITICAL`.
+
+    The default is `CRITICAL` because SMS delivery has a per-message cost and latency. Reserve SMS for events that genuinely require immediate attention regardless of internet connectivity.
+
+    **Default:** `'CRITICAL'`
+  </Accordion>
+  <Accordion title="GSM_EVENT_FILTERS">
+    A list of tag expressions that control which events trigger an SMS. Each entry is a comma-separated list of tags; a `-` prefix excludes a tag.
+
+    **Default:**
+    ```python
+    ['live,zone,alarm,trigger']
+    ```
+  </Accordion>
+  <Accordion title="GSM_ALLOW_EVENTS and GSM_IGNORE_EVENTS">
+    Alternative to `GSM_EVENT_FILTERS` using regular expressions.
+
+    - `GSM_ALLOW_EVENTS` — list of regex patterns matching `type,label,property=value` for events to forward.
+    - `GSM_IGNORE_EVENTS` — list of regex patterns for events to suppress, applied after `ALLOW_EVENTS`.
+
+    **Default:** `[]` for both
+  </Accordion>
+</AccordionGroup>
+
+## Example configuration
+
+<CodeGroup>
+
+```python basic (SIM900 on USB)
+GSM_ENABLE = True
+GSM_MODEM_PORT = '/dev/ttyUSB0'
+GSM_MODEM_BAUDRATE = 115200
+GSM_CONTACTS = ['+12125551234']
+GSM_MIN_EVENT_LEVEL = 'CRITICAL'
+GSM_EVENT_FILTERS = [
+    'live,zone,alarm,trigger',
+]
+```
+
+```python lower level with regex filtering
+GSM_ENABLE = True
+GSM_MODEM_PORT = '/dev/ttyS0'
+GSM_MODEM_BAUDRATE = 9600
+GSM_CONTACTS = ['+12125551234', '+442071234567']
+GSM_MIN_EVENT_LEVEL = 'ERROR'
+GSM_ALLOW_EVENTS = [r".*"]
+GSM_IGNORE_EVENTS = [
+    r"zone,[\w]+,no_delay=True",
+    r"zone,[\w]+,exit_delay=.*",
+]
+```
+
+</CodeGroup>
+
+## How event filtering works
+
+<Tabs>
+  <Tab title="Tag filters (GSM_EVENT_FILTERS)">
+    Each entry in `GSM_EVENT_FILTERS` is a comma-separated list of tags. A `-` prefix means the tag must **not** be present. An SMS is sent if an event matches **all** tags in **any** one filter entry.
+
+    ```python
+    GSM_EVENT_FILTERS = [
+        'live,zone,alarm,trigger',  # live zone alarm triggers only
+    ]
+    ```
+  </Tab>
+  <Tab title="Regex filters (GSM_ALLOW_EVENTS / GSM_IGNORE_EVENTS)">
+    Use `GSM_ALLOW_EVENTS` as an allowlist and `GSM_IGNORE_EVENTS` as a denylist. Patterns match against strings in the format `type,label,property=value`.
+
+    ```python
+    GSM_ALLOW_EVENTS = [r".*"]  # allow everything...
+    GSM_IGNORE_EVENTS = [       # ...except these
+        r"zone,[\w]+,no_delay=True",
+        r"zone,[\w]+,exit_delay=.*",
+    ]
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  Do not set both `GSM_EVENT_FILTERS` and `GSM_ALLOW_EVENTS` at the same time. Use one approach or the other.
+</Warning>
+
+## Modem initialisation
+
+When PAI starts, it sends a sequence of AT commands to configure the modem:
+
+| Command | Purpose |
+|---|---|
+| `AT` | Verify modem is responsive |
+| `ATE0` | Disable command echo |
+| `AT+CMEE=2` | Enable verbose error reporting |
+| `AT+CMGF=1` | Set SMS text mode |
+| `AT+CFUN=1` | Enable full modem functionality |
+| `AT+CNMI=1,2,0,0,0` | Route incoming SMS directly to the serial port via `+CMT` |
+| `AT+CUSD=1` | Enable USSD result code presentation |
+
+If the modem does not respond, PAI retries the connection every 5 seconds.
+
+<Info>
+  The SIM900 module has been tested with this integration. Other modems that support standard GSM AT commands (3GPP TS 27.005) should also work.
+</Info>

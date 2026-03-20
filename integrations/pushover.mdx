@@ -1,0 +1,188 @@
+---
+title: "Pushover Integration"
+description: "Send alarm notifications to Pushover users and groups"
+---
+
+The Pushover integration lets PAI deliver alarm event notifications to one or more Pushover users or groups. Notifications are sent with a priority level that maps to the PAI event severity, so CRITICAL events trigger Pushover's emergency priority (which repeats until acknowledged).
+
+## Prerequisites
+
+<CardGroup cols={2}>
+  <Card title="Pushover account" icon="user">
+    Create an account at [pushover.net](https://pushover.net).
+  </Card>
+  <Card title="Application token" icon="key">
+    Register a new application in your Pushover dashboard to get an application token (`PUSHOVER_KEY`).
+  </Card>
+</CardGroup>
+
+<Note>
+  No additional packages are required. Pushover notifications are delivered over HTTPS using the `requests` library, which is already a core PAI dependency.
+</Note>
+
+## Priority mapping
+
+PAI maps its internal event levels to Pushover message priorities:
+
+| PAI event level | Pushover priority |
+|-----------------|-------------------|
+| `DEBUG` | `-2` (lowest, no notification) |
+| `INFO` | `-1` (quiet) |
+| `WARN` | `0` (normal) |
+| `ERROR` | `1` (high) |
+| `CRITICAL` | `2` (emergency — repeats every 30 s, expires after 3 h) |
+
+## Configuration
+
+Add the following to your `pai.conf`:
+
+```python pai.conf
+PUSHOVER_ENABLE = True
+PUSHOVER_KEY = '<application-token>'   # Application token from your Pushover app dashboard
+PUSHOVER_BROADCAST_KEYS = [
+    {'user_key': '<user-or-group-key>', 'devices': '*'},  # '*' sends to all user devices
+]
+
+PUSHOVER_MIN_EVENT_LEVEL = 'INFO'      # Minimum event level: DEBUG, INFO, WARN, ERROR, CRITICAL
+
+# Event filtering by tags (default):
+PUSHOVER_EVENT_FILTERS = [
+    'live,alarm,-restore',  # Live alarm events, excluding restores
+    'trouble,-clock',       # Trouble events, excluding clock trouble
+    'live,tamper',          # Live tamper events
+]
+```
+
+### Configuration reference
+
+<AccordionGroup>
+  <Accordion title="PUSHOVER_ENABLE">
+    Enable or disable the Pushover interface.
+
+    **Default:** `False`
+  </Accordion>
+  <Accordion title="PUSHOVER_KEY">
+    Your Pushover application token. Obtain this by registering a new application at [pushover.net/apps/build](https://pushover.net/apps/build).
+
+    **Default:** `''`
+  </Accordion>
+  <Accordion title="PUSHOVER_BROADCAST_KEYS">
+    A list of recipient dictionaries. Each entry must have:
+
+    - `user_key` — the Pushover user or group key.
+    - `devices` — `'*'` to send to all devices, or a comma-separated list of device names.
+
+    PAI sends a separate HTTP request to the Pushover API for each device entry.
+
+    **Default:** `[]`
+
+    **Example:**
+    ```python
+    PUSHOVER_BROADCAST_KEYS = [
+        {'user_key': 'uABC123', 'devices': '*'},
+        {'user_key': 'uDEF456', 'devices': 'iphone,desktop'},
+    ]
+    ```
+  </Accordion>
+  <Accordion title="PUSHOVER_MIN_EVENT_LEVEL">
+    The minimum severity level for events to be forwarded. Accepted values: `DEBUG`, `INFO`, `WARN`, `ERROR`, `CRITICAL`.
+
+    **Default:** `'INFO'`
+  </Accordion>
+  <Accordion title="PUSHOVER_EVENT_FILTERS">
+    A list of tag expressions that control which events are sent. Each entry is a comma-separated list of tags; a `-` prefix excludes a tag. An event matches if all tags in any one expression match. Cannot be combined with `PUSHOVER_ALLOW_EVENTS`.
+
+    **Default:**
+    ```python
+    [
+        'live,alarm,-restore',
+        'trouble,-clock',
+        'live,tamper',
+    ]
+    ```
+  </Accordion>
+  <Accordion title="PUSHOVER_ALLOW_EVENTS and PUSHOVER_IGNORE_EVENTS">
+    Alternative to `PUSHOVER_EVENT_FILTERS` using regular expressions.
+
+    - `PUSHOVER_ALLOW_EVENTS` — list of regex patterns matching `type,label,property=value` for events to forward.
+    - `PUSHOVER_IGNORE_EVENTS` — list of regex patterns for events to suppress, applied after `ALLOW_EVENTS`.
+
+    **Default:** `[]` for both
+  </Accordion>
+</AccordionGroup>
+
+## Example configuration
+
+<CodeGroup>
+
+```python single user
+PUSHOVER_ENABLE = True
+PUSHOVER_KEY = 'aAppTokenHere'
+PUSHOVER_BROADCAST_KEYS = [
+    {'user_key': 'uUserKeyHere', 'devices': '*'},
+]
+PUSHOVER_MIN_EVENT_LEVEL = 'INFO'
+PUSHOVER_EVENT_FILTERS = [
+    'live,alarm,-restore',
+    'trouble,-clock',
+    'live,tamper',
+]
+```
+
+```python multiple users
+PUSHOVER_ENABLE = True
+PUSHOVER_KEY = 'aAppTokenHere'
+PUSHOVER_BROADCAST_KEYS = [
+    {'user_key': 'uAliceKeyHere', 'devices': '*'},
+    {'user_key': 'uBobKeyHere', 'devices': 'android'},
+    {'user_key': 'uGroupKeyHere', 'devices': '*'},  # group key
+]
+PUSHOVER_MIN_EVENT_LEVEL = 'WARN'
+```
+
+```python regex filtering
+PUSHOVER_ENABLE = True
+PUSHOVER_KEY = 'aAppTokenHere'
+PUSHOVER_BROADCAST_KEYS = [
+    {'user_key': 'uUserKeyHere', 'devices': '*'},
+]
+PUSHOVER_MIN_EVENT_LEVEL = 'INFO'
+PUSHOVER_ALLOW_EVENTS = [r".*"]
+PUSHOVER_IGNORE_EVENTS = [
+    r"zone,[\w]+,no_delay=True",
+    r"zone,[\w]+,exit_delay=.*",
+]
+```
+
+</CodeGroup>
+
+## How event filtering works
+
+<Tabs>
+  <Tab title="Tag filters (PUSHOVER_EVENT_FILTERS)">
+    Each entry in `PUSHOVER_EVENT_FILTERS` is a comma-separated list of tags. A `-` prefix means the tag must **not** be present. An event is forwarded if it matches **all** tags in **any** one filter entry.
+
+    ```python
+    PUSHOVER_EVENT_FILTERS = [
+        'live,alarm,-restore',  # live alarm events that are not restores
+        'trouble,-clock',       # trouble events that are not clock-related
+        'live,tamper',          # live tamper events
+    ]
+    ```
+  </Tab>
+  <Tab title="Regex filters (PUSHOVER_ALLOW_EVENTS / PUSHOVER_IGNORE_EVENTS)">
+    Use `PUSHOVER_ALLOW_EVENTS` as an allowlist and `PUSHOVER_IGNORE_EVENTS` as a denylist. Patterns match against strings in the format `type,label,property=value`.
+
+    ```python
+    PUSHOVER_ALLOW_EVENTS = [r".*"]  # allow everything...
+    PUSHOVER_IGNORE_EVENTS = [       # ...except these
+        r"zone,[\w]+,no_delay=True",
+        r"zone,[\w]+,exit_delay=.*",
+    ]
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  Do not set both `PUSHOVER_EVENT_FILTERS` and `PUSHOVER_ALLOW_EVENTS` at the same time. Use one approach or the other.
+</Warning>
