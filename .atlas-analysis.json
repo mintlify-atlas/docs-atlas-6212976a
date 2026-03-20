@@ -1,0 +1,116 @@
+{
+  "projectType": "infrastructure",
+  "projectName": "PAI - Paradox Alarm Interface",
+  "projectDescription": "Middleware that connects to Paradox alarm panels (MG/SP/EVO series) and exposes monitoring and control via MQTT, HomeAssistant, Signal, Pushbullet, Pushover, GSM, and other integrations.",
+  "theme": "aspen",
+  "primaryColor": "#5c64f4",
+  "lightColor": "#acb4fc",
+  "darkColor": "#ffffff",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Connection",
+            "pages": [
+              "connection/overview",
+              "connection/serial",
+              "connection/ip150"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/overview",
+              "configuration/general",
+              "configuration/limits"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/mqtt",
+              "integrations/homeassistant",
+              "integrations/pushbullet",
+              "integrations/pushover",
+              "integrations/signal",
+              "integrations/gsm"
+            ]
+          },
+          {
+            "group": "Supported Hardware",
+            "pages": [
+              "hardware/overview",
+              "hardware/evo",
+              "hardware/spectra-magellan"
+            ]
+          },
+          {
+            "group": "Operations",
+            "pages": [
+              "operations/docker",
+              "operations/event-filtering",
+              "operations/troubleshooting"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Configuration Reference",
+            "pages": [
+              "reference/config-options",
+              "reference/mqtt-topics",
+              "reference/command-alias"
+            ]
+          },
+          {
+            "group": "CLI Commands",
+            "pages": [
+              "reference/cli/pai-service",
+              "reference/cli/pai-dump-memory",
+              "reference/cli/ip150-decrypt"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Serial and IP150 module connections to Paradox alarm panels",
+    "MQTT integration with full topic hierarchy for zones, partitions, outputs, and events",
+    "Home Assistant auto-discovery via MQTT",
+    "Push notifications via Pushbullet, Pushover, Signal, and GSM/SMS",
+    "Supports MG/SP/EVO panel families (Magellan, Spectra, EVO)",
+    "Docker multi-arch images (386, amd64, armv6, armv7, arm64)",
+    "Event filtering with tag-based or regexp rules",
+    "Configuration via .conf, .json, or .yaml files with environment variable overrides",
+    "Panel time synchronization",
+    "IP150 SITE ID (SWAN) cloud connection support"
+  ],
+  "publicApiSurface": [
+    "pai-service CLI command",
+    "pai-dump-memory CLI command",
+    "ip150-connection-decrypt CLI command",
+    "MQTT topic: paradox/zones/{name}/states/{property}",
+    "MQTT topic: paradox/partitions/{name}/states/{property}",
+    "MQTT topic: paradox/control/{type}/{name}/{command}",
+    "MQTT topic: paradox/events/raw",
+    "MQTT topic: paradox/interface/pai_status",
+    "Config: CONNECTION_TYPE (Serial|IP)",
+    "Config: MQTT_ENABLE, MQTT_HOST, MQTT_PORT",
+    "Config: MQTT_HOMEASSISTANT_AUTODISCOVERY_ENABLE",
+    "Config: PUSHBULLET_ENABLE, PUSHOVER_ENABLE, SIGNAL_ENABLE, GSM_ENABLE"
+  ]
+}
