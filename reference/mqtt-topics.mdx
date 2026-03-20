@@ -13,24 +13,35 @@ Customize the base topic and all sub-topic segments in your config file. See [Co
 
 ```text
 {base}/
-├── zones/{name}/states/{property}
-├── partitions/{name}/states/{property}
-├── outputs/{name}/states/{property}
-├── buses/{name}/states/{property}
-├── doors/{name}/states/{property}
-├── keypads/{name}/states/{property}
-├── repeaters/{name}/states/{property}
-├── users/{name}/states/{property}
-├── system/{property}
+├── states/
+│   ├── zones/{name}/{property}
+│   ├── partitions/{name}/{property}
+│   ├── outputs/{name}/{property}
+│   ├── buses/{name}/{property}
+│   ├── bus-module/{name}/{property}
+│   ├── doors/{name}/{property}
+│   ├── keypads/{name}/{property}
+│   ├── repeaters/{name}/{property}
+│   ├── users/{name}/{property}
+│   ├── system/{property}
+│   └── challenge
 ├── events/raw
-├── interface/pai_status
-├── interface/availability
-├── control/partition/{name}/{command}
-├── control/output/{name}/{command}
-├── control/panic
+├── interface/
+│   ├── pai_status
+│   └── availability
+├── control/
+│   ├── partitions/{name}/{command}
+│   ├── outputs/{name}/{command}
+│   ├── zones/{name}/{command}
+│   └── doors/{name}/{command}
+├── panic/{type}/{partition}/{userid}
 ├── command_status
 └── definitions/{type}/{name}
 ```
+
+<Note>
+The `states` segment always appears between the base topic and the element type. State topics follow the pattern `{base}/states/{element-type}/{name}/{property}` — **not** `{base}/{element-type}/{name}/states/{property}`.
+</Note>
 
 ---
 
@@ -40,15 +51,16 @@ PAI publishes state changes for each panel element as individual property topics
 
 | Topic pattern | Description |
 |---|---|
-| `{base}/zones/{name}/states/{property}` | Zone state property (e.g. `open`, `alarm`, `tamper`, `bypass`) |
-| `{base}/partitions/{name}/states/{property}` | Partition state property (e.g. `arm`, `alarm`, `current_state`, `target_state`) |
-| `{base}/outputs/{name}/states/{property}` | PGM output state property |
-| `{base}/buses/{name}/states/{property}` | Bus module state property |
-| `{base}/doors/{name}/states/{property}` | Door state property |
-| `{base}/keypads/{name}/states/{property}` | Keypad state property |
-| `{base}/repeaters/{name}/states/{property}` | Repeater state property |
-| `{base}/users/{name}/states/{property}` | User state property |
-| `{base}/system/{property}` | Panel/system-level state property |
+| `{base}/states/zones/{name}/{property}` | Zone state property (e.g. `open`, `alarm`, `tamper`, `bypass`) |
+| `{base}/states/partitions/{name}/{property}` | Partition state property (e.g. `arm`, `alarm`, `current_state`, `target_state`) |
+| `{base}/states/outputs/{name}/{property}` | PGM output state property |
+| `{base}/states/buses/{name}/{property}` | Bus state property |
+| `{base}/states/bus-module/{name}/{property}` | Bus module state property |
+| `{base}/states/doors/{name}/{property}` | Door state property |
+| `{base}/states/keypads/{name}/{property}` | Keypad state property |
+| `{base}/states/repeaters/{name}/{property}` | Repeater state property |
+| `{base}/states/users/{name}/{property}` | User state property |
+| `{base}/states/system/{property}` | Panel/system-level state property |
 
 <Tip>
 Set `MQTT_USE_NUMERIC_STATES = True` to publish `0`/`1` instead of `False`/`True` for boolean properties.
@@ -87,9 +99,12 @@ Send commands to PAI by publishing to these topics. The message payload is the c
 
 | Topic pattern | Direction | Payload / description |
 |---|---|---|
-| `{base}/control/partition/{name}/{command}` | Subscribe | Arm/disarm a partition. See [available partition commands](#partition-commands) below. |
-| `{base}/control/output/{name}/{command}` | Subscribe | Control a PGM output. Commands: `on`, `off`, `pulse` |
-| `{base}/control/panic` | Subscribe | Trigger a panic alarm |
+| `{base}/control/partitions/{name}/{command}` | Subscribe | Arm/disarm a partition. See [available partition commands](#partition-commands) below. |
+| `{base}/control/outputs/{name}/{command}` | Subscribe | Control a PGM output. Commands: `on`, `off`, `pulse` |
+| `{base}/control/zones/{name}/{command}` | Subscribe | Control a zone. Commands: `bypass`, `clear_bypass`, `clear_alarm_memory` |
+| `{base}/control/doors/{name}/{command}` | Subscribe | Control a door (EVO panels only) |
+| `{base}/panic/{type}/{partition}/{userid}` | Subscribe | Trigger a panic alarm |
+| `{base}/notifications/{level}` | Subscribe | Inject a notification into PAI at the given event level |
 
 <Warning>
 Commands are executed immediately. Ensure only authorized MQTT clients have publish access to the `{base}/control/#` topic tree.
@@ -112,7 +127,7 @@ Commands are translated through `MQTT_COMMAND_ALIAS` before execution, so you ca
 
 | Topic pattern | Description |
 |---|---|
-| `{base}/command_status` | Result of the most recently executed command, published when `MQTT_PUBLISH_COMMAND_STATUS = True` |
+| `{base}/interface/command_status` | Result of the most recently executed command, published when `MQTT_PUBLISH_COMMAND_STATUS = True` (QoS 2, retained) |
 
 ---
 
@@ -155,20 +170,20 @@ Published when `MQTT_DASH_PUBLISH = True`.
 
 | Topic pattern | Description |
 |---|---|
-| `{base}/notifications` | Interface notification messages |
+| `{base}/notifications/{level}` | Inject a notification into PAI's notification pipeline at the given event level (e.g. `INFO`, `ERROR`) |
 
 ---
 
 ## Example: listening to all zone states
 
 ```bash
-mosquitto_sub -h 127.0.0.1 -t 'paradox/zones/#'
+mosquitto_sub -h 127.0.0.1 -t 'paradox/states/zones/#'
 ```
 
 ## Example: arming partition 1
 
 ```bash
-mosquitto_pub -h 127.0.0.1 -t 'paradox/control/partition/Partition1/arm' -m ''
+mosquitto_pub -h 127.0.0.1 -t 'paradox/control/partitions/Partition1/arm' -m 'arm'
 ```
 
 ## Example: using Home Assistant state names
@@ -176,5 +191,5 @@ mosquitto_pub -h 127.0.0.1 -t 'paradox/control/partition/Partition1/arm' -m ''
 With the default `MQTT_COMMAND_ALIAS` you can publish Home Assistant state names directly:
 
 ```bash
-mosquitto_pub -h 127.0.0.1 -t 'paradox/control/partition/Partition1/armed_away' -m ''
+mosquitto_pub -h 127.0.0.1 -t 'paradox/control/partitions/Partition1/armed_away' -m 'armed_away'
 ```

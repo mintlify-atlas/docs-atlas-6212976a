@@ -157,12 +157,12 @@ When PAI and Mosquitto share a Compose network, use the service name `mosquitto`
 
 ## Exposed ports
 
-The image exposes two ports, used only if the corresponding interfaces are enabled in your config:
+The image exposes two ports:
 
-| Port | Interface |
+| Port | Purpose |
 |---|---|
-| `18839/tcp` | Internal MQTT broker (bind address `0.0.0.0`) |
-| `10000/tcp` | IP Socket Interface (`IP_INTERFACE_ENABLE = True`) |
+| `18839/tcp` | MQTT client bind port (`PAI_MQTT_BIND_PORT`). PAI binds outgoing MQTT connections to this port when `MQTT_BIND_PORT` is set. Typically not needed unless your network requires a fixed source port. |
+| `10000/tcp` | IP Socket Interface — used when `IP_INTERFACE_ENABLE = True` to expose a local IP150-compatible endpoint. |
 
 ## Default entrypoint
 

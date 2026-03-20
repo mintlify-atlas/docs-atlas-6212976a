@@ -98,7 +98,7 @@ PAI has been tested on Ubuntu Server 16.04+, Raspberry Pi 3, NanoPi NEO, and Ora
       paradoxalarminterface/pai
     ```
 
-    The container exposes port `10000/tcp` for the IP socket interface and port `18839/tcp` for the internal MQTT bind address.
+    The container exposes port `10000/tcp` for the IP socket interface (`IP_INTERFACE_ENABLE = True`) and port `18839/tcp` for the MQTT client bind port (`MQTT_BIND_PORT`).
 
     <Warning>
       The Docker image includes a default `pai.conf` copied from the example config. Mount your own `/etc/pai` volume to override it with your real settings before starting the container.

@@ -122,7 +122,20 @@ The following zone commands are supported on EVO panels:
 
 ## Partition control commands
 
-Partition commands are sent using `PerformPartitionAction`. Supported commands depend on what the panel accepts via the EVO protocol's `PerformPartitionAction` parser.
+The following partition commands are supported on EVO panels (from `_PartitionCommandEnum` in the EVO parsers):
+
+| Command | Description |
+|---|---|
+| `arm` | Standard arm |
+| `arm_stay` | Stay / home arm |
+| `arm_instant` | Instant arm |
+| `arm_force` | Force arm |
+| `disarm` | Disarm |
+| `beep_keypads` | Beep keypads |
+
+<Note>
+EVO panels do not support `arm_sleep`. Use `arm_stay` for home/stay arming on EVO.
+</Note>
 
 ## EEPROM and RAM
 

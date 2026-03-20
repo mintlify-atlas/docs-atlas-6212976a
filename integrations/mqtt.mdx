@@ -66,13 +66,13 @@ The MQTT interface is disabled by default. You must set `MQTT_ENABLE = True` for
 All topics are rooted under `MQTT_BASE_TOPIC` (default: `paradox`). State topics follow the pattern:
 
 ```
-{base}/{element-type}/{name}/states/{property}
+{base}/states/{element-type}/{name}/{property}
 ```
 
-The intermediate `states` segment comes from `MQTT_STATES_TOPIC` (default: `states`).
+The `states` segment comes from `MQTT_STATES_TOPIC` (default: `states`) and appears **before** the element type, not after the element name.
 
 <Note>
-In the source code, the state topic prefix is built as `{MQTT_BASE_TOPIC}/{MQTT_STATES_TOPIC}/{element-topic}`. Element names are sanitized before use as topic segments.
+In the source code (`basic.py`), state topics are built as `{MQTT_BASE_TOPIC}/{MQTT_STATES_TOPIC}/{element_topic}/{sanitized_name}/{attribute}`. Element names are slugified before use as topic segments.
 </Note>
 
 ### Element topics
@@ -92,13 +92,13 @@ In the source code, the state topic prefix is built as `{MQTT_BASE_TOPIC}/{MQTT_
 
 ### Special topics
 
-| Purpose | Config keys | Full default topic |
+| Purpose | Topic (default values) | Notes |
 |---|---|---|
-| Raw JSON events | `MQTT_EVENTS_TOPIC`, `MQTT_RAW_TOPIC` | `paradox/events/raw` |
-| Interface / PAI status | `MQTT_INTERFACE_TOPIC` | `paradox/interface/pai_status` |
-| Availability | `MQTT_INTERFACE_TOPIC` | `paradox/interface/availability` |
-| Challenge (HMAC auth) | `MQTT_STATES_TOPIC`, `MQTT_CHALLENGE_TOPIC` | `paradox/states/challenge` |
-| Command status | `MQTT_INTERFACE_TOPIC`, `MQTT_COMMAND_STATUS_TOPIC` | `paradox/interface/command_status` |
+| Raw JSON events | `paradox/events/raw` | Published when `MQTT_PUBLISH_RAW_EVENTS = True` (default) |
+| PAI run status | `paradox/interface/pai_status` | Values: `initializing`, `connected`, `online`, `paused`, `stopped`, `error` |
+| Availability (LWT) | `paradox/interface/availability` | Values: `online` / `offline` |
+| Challenge (HMAC auth) | `paradox/states/challenge` | Published when `MQTT_CHALLENGE_SECRET` is set |
+| Command status | `paradox/interface/command_status` | Published when `MQTT_PUBLISH_COMMAND_STATUS = True` (QoS 2, retained) |
 
 The `pai_status` topic carries one of: `initializing`, `connected`, `online`, `paused`, `stopped`, `error`, or `offline`.
 
@@ -130,7 +130,7 @@ Retained messages are ignored — PAI logs a warning and discards them.
 
 ### Partition commands
 
-Publish to `paradox/control/partitions/{name}`:
+Publish to `paradox/control/partitions/{name}/{command}`:
 
 | Command | Action |
 |---|---|
@@ -141,7 +141,7 @@ Publish to `paradox/control/partitions/{name}`:
 
 ### Output / PGM commands
 
-Publish to `paradox/control/outputs/{name}`:
+Publish to `paradox/control/outputs/{name}/{command}`:
 
 | Command | Action |
 |---|---|
@@ -151,7 +151,7 @@ Publish to `paradox/control/outputs/{name}`:
 
 ### Panic command
 
-Publish to `paradox/panic/{type}/{partition}/{userid}` to trigger a panic. `{type}` is the panic type code accepted by the panel.
+Publish to `paradox/panic/{type}/{partition}/{userid}` to trigger a panic. `{type}` is the panic type code accepted by the panel, `{partition}` is the partition name, and `{userid}` is the user ID number.
 
 Customise the topic prefix with `MQTT_SEND_PANIC_TOPIC` (default: `'panic'`).
 
@@ -208,7 +208,7 @@ Do not set `MQTT_CHALLENGE_SECRET` if you do not have a client that implements t
 
 ### Publishing command status
 
-Enable `MQTT_PUBLISH_COMMAND_STATUS = True` to have PAI publish accepted/refused messages for each command to `paradox/interface/command_status` (QoS 2, retained).
+Enable `MQTT_PUBLISH_COMMAND_STATUS = True` to have PAI publish accepted/refused messages for each command to `paradox/interface/command_status` (topic: `{base}/{MQTT_INTERFACE_TOPIC}/{MQTT_COMMAND_STATUS_TOPIC}`, QoS 2, retained).
 
 ## Republishing state
 

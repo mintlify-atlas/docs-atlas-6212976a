@@ -13,7 +13,7 @@ PAI supports three file formats.
 |--------|------------|-------|
 | Python | `.conf`, `.py` | Evaluated with `exec()`. Supports expressions like `15 * 60`. |
 | JSON | `.json` | Standard JSON. No comments or expressions. |
-| YAML | `.yaml` | Requires the `yaml` extra (`pip install pai[yaml]`). |
+| YAML | `.yaml` | Requires the `YAML` extra (`pip install "paradox-alarm-interface[YAML]"`). |
 
 ## Config file search order
 
@@ -130,7 +130,7 @@ MQTT_PORT: 1883
 </CodeGroup>
 
 <Warning>
-  YAML support requires an optional dependency. Install it with `pip install pai[yaml]` before using a `.yaml` config file.
+  YAML support requires an optional dependency. Install it with `pip install "paradox-alarm-interface[YAML]"` before using a `.yaml` config file.
 </Warning>
 
 <Info>
@@ -139,11 +139,11 @@ MQTT_PORT: 1883
 
 ## Next steps
 
-<Columns cols={2}>
+<CardGroup cols={2}>
   <Card title="General settings" icon="sliders" href="/configuration/general">
     Connection, logging, panel behavior, and timing options.
   </Card>
   <Card title="Resource limits" icon="filter" href="/configuration/limits">
     Restrict which zones, partitions, outputs, and users PAI monitors.
   </Card>
-</Columns>
+</CardGroup>
